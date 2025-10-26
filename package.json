@@ -1,0 +1,31 @@
+{
+  "name": "digital-qr-menu-system",
+  "version": "1.0.0",
+  "description": "Digital QR Menu System with Firebase Hosting frontend and Node.js backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "deploy": "cd frontend && npm run build && firebase deploy",
+    "setup": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "@types/formidable": "^3.4.6",
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "qr-menu",
+    "restaurant",
+    "digital-menu",
+    "firebase",
+    "nodejs"
+  ],
+  "author": "SmartMenu Team",
+  "license": "MIT",
+  "dependencies": {
+    "formidable": "^3.5.4"
+  }
+}

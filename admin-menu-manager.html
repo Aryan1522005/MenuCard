@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Manager</title>
+    <script>
+        // Global user role variable
+        let currentUserRole = 'viewer';
+        
+        // Get API base URL for network access
+        function getApiBaseUrl() {
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5000/api';
+            } else {
+                return `http://${hostname}:5000/api`;
+            }
+        }
+        
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            const token = localStorage.getItem('adminToken');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Verify token is still valid and get user info
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                const userData = await response.json();
+                currentUserRole = userData.user.role;
+                console.log('Current user role:', currentUserRole);
+                
+                // Update user role indicator
+                updateUserRoleIndicator(currentUserRole);
+                
+            } catch (error) {
+                localStorage.removeItem('adminToken');
+                window.location.href = 'login.html';
+                return;
+            }
+        });
+    </script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+            background: #ffffff;
+            min-height: 100vh;
+            color: #1f2937;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        .header { 
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header h2 { 
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        
+        select, input, textarea { 
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        select:focus, input:focus, textarea:focus { 
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn { 
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        
+        .btn-secondary { 
+            background: #6b7280;
+            box-shadow: 0 4px 15px rgba(107, 114, 128, 0.3);
+        }
+        
+        .btn-secondary:hover { 
+            background: #4b5563;
+            box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
+        }
+        
+        .btn-outline-primary { 
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            box-shadow: none;
+        }
+        
+        .btn-outline-primary:hover { 
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-danger { 
+            background: linear-gradient(135deg, #f43f5e 0%, #dc2626 100%);
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.3);
+        }
+        
+        .btn-danger:hover { 
+            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.4);
+        }
+        
+        #menu-content { margin-top: 1.5rem; }
+        
+        .modal { 
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        
+        .modal-content { 
+            background: white;
+            border-radius: 20px;
+            width: min(640px, 100%);
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modal-header { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f3f4f6;
+        }
+        
+        .modal-header h3 { 
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .close-modal { 
+            background: transparent;
+            border: none;
+            font-size: 1.75rem;
+            cursor: pointer;
+            color: #9ca3af;
+            transition: all 0.2s;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        
+        .close-modal:hover { 
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+        
+        .form-group { 
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label { 
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+        
+        .form-actions { 
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid #f3f4f6;
+        }
+        
+        .empty-state { 
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: #6b7280;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .empty-state i { 
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #d1d5db;
+        }
+        
+        #status { 
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        /* Menu Management specific styles */
+        .menu-management-header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .menu-management-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        
+        .menu-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .menu-filters {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .filter-group, .search-group {
+            margin-bottom: 1rem;
+        }
+        
+        .filter-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .search-input {
+            width: 100%;
+        }
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .category-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .category-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .category-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .no-image {
+            font-size: 4rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .category-content {
+            padding: 1.5rem;
+        }
+        
+        .category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .category-header h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .item-count {
+            background: #f59e0b; /* orange */
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        /* Category items header + controls */
+        .category-items-simple-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 14px;
+            padding: 12px 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #6b7280;
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all .25s ease;
+            box-shadow: 0 4px 14px rgba(107,114,128,.3);
+        }
+
+        .back-btn:hover { background:#4b5563; transform: translateY(-1px); }
+
+        .primary-cta {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .empty-content h3 { font-size: 1.25rem; margin-bottom: .25rem; color: #111827; }
+        .empty-content p { margin-bottom: 1rem; }
+
+        /* Search row within category */
+        .search-input-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 8px 12px;
+            box-shadow: 0 6px 16px rgba(0,0,0,.04);
+        }
+
+        .search-input-container i { color:#9ca3af; }
+        .search-input-container input { border: none; padding: 6px 4px; outline: none; }
+
+        /* Item card image placeholder */
+        .image-placeholder {
+            width: 120px;
+            height: 90px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background: linear-gradient(135deg,#e5e7eb,#f3f4f6);
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .btn-view { background: #f59e0b; }
+        .btn-view:hover { background: #d97706; }
+        .btn-edit { background: #6b7280; }
+        .btn-edit:hover { background: #4b5563; }
+        .btn-delete { background: #dc2626; }
+        .btn-delete:hover { background: #b91c1c; }
+        
+        .category-description {
+            color: #6b7280;
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+        
+        .category-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .category-actions .btn {
+            flex: 1;
+            min-width: 80px;
+            font-size: 0.875rem;
+            padding: 0.6rem 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="row">
+                <h2 style="margin:0">Menu Manager</h2>
+                <span id="status" style="color:#6b7280; font-size:13px"></span>
+            </div>
+            <div class="row" style="justify-content:space-between;width:100%;">
+                <div class="row" style="flex:1;">
+                <div style="position:relative;flex:1;">
+                    <input type="text" id="restaurantSearch" placeholder="Search restaurants..." style="width:100%;padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                    <i class="fas fa-search" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#6b7280;"></i>
+                    <div id="searchSuggestions" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);z-index:1000;max-height:200px;overflow-y:auto;display:none;">
+                        <!-- Search suggestions will appear here -->
+                    </div>
+                </div>
+                <select id="restaurantSelect" style="flex:1;">
+                    <option value="">Choose a restaurant...</option>
+                </select>
+                <button class="btn" id="refreshBtn">Refresh</button>
+                </div>
+                <div class="row" style="gap:0.5rem; align-items: center;">
+                    <div id="userRoleIndicator" style="color: #6b7280; font-size: 0.875rem; font-weight: 500; padding: 0.5rem 1rem; background-color: #f3f4f6; border-radius: 0.375rem; border: 1px solid #e5e7eb;">
+                        Logged in as: <span id="userRoleText">Loading...</span>
+                    </div>
+                    <a href="admin.html" class="btn btn-secondary" style="text-decoration:none;padding:0.75rem 1rem;font-size:0.9rem;">Admin Panel</a>
+                    <a href="admin-reviews.html" class="btn btn-outline-primary" style="text-decoration:none;padding:0.75rem 1rem;font-size:0.9rem;">Reviews</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="menu-content"></div>
+    </div>
+
+    <script>
+        const API_BASE = getApiBaseUrl();
+        const Status = {
+            set(msg) { const el = document.getElementById('status'); if (el) el.textContent = msg || ''; }
+        };
+        
+        // Helper function to get auth headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('adminToken');
+            return {
+                'Authorization': `Bearer ${token}`
+            };
+        }
+        
+        // Update user role indicator
+        function updateUserRoleIndicator(role) {
+            const roleText = document.getElementById('userRoleText');
+            if (roleText) {
+                const roleDisplay = role.charAt(0).toUpperCase() + role.slice(1);
+                roleText.textContent = roleDisplay;
+                
+                // Add color coding based on role
+                const indicator = document.getElementById('userRoleIndicator');
+                if (indicator) {
+                    switch(role) {
+                        case 'admin':
+                            indicator.style.backgroundColor = '#fef2f2';
+                            indicator.style.borderColor = '#fecaca';
+                            indicator.style.color = '#991b1b';
+                            break;
+                        case 'manager':
+                            indicator.style.backgroundColor = '#eff6ff';
+                            indicator.style.borderColor = '#bfdbfe';
+                            indicator.style.color = '#1e40af';
+                            break;
+                        case 'viewer':
+                            indicator.style.backgroundColor = '#f9fafb';
+                            indicator.style.borderColor = '#d1d5db';
+                            indicator.style.color = '#6b7280';
+                            break;
+                    }
+                }
+            }
+        }
+
+        // Minimal notification helpers expected by MenuManager
+        function showNotification(message, type = 'info') {
+            console.log(`[${type}]`, message);
+            const n = document.createElement('div');
+            n.textContent = message;
+            n.style.cssText = 'position:fixed; top:20px; right:20px; background:#111827; color:#fff; padding:16px 20px; border-radius:12px; z-index:10000; font-size:15px; font-weight:600; box-shadow:0 10px 40px rgba(0,0,0,0.3); max-width:400px; word-wrap:break-word;';
+            if (type === 'error') n.style.background = '#dc2626';
+            if (type === 'success') n.style.background = '#059669';
+            document.body.appendChild(n);
+            setTimeout(() => n.remove(), 4000);
+        }
+        function showLoading(isLoading) {
+            Status.set(isLoading ? 'Loading…' : '');
+        }
+
+        // API adapter that matches the MenuManager expectations but calls our backend
+        const API = {
+            async get(path) {
+                // Map PHP-like endpoints to our REST API
+                const url = mapGet(path);
+                if (!url) {
+                    throw new Error('Invalid API endpoint for: ' + path);
+                }
+                console.log('Fetching:', url);
+                const res = await fetch(url, {
+                    headers: getAuthHeaders()
+                });
+                if (!res.ok) {
+                    let message = 'Network error';
+                    try { const err = await res.json(); message = err.message || message; } catch {}
+                    throw new Error(`${message} (${res.status})`);
+                }
+                return res.json();
+            },
+            async post(path, body) {
+                // Transform body for items POST to match backend contract
+                const url = mapWrite(path, 'POST');
+                console.log('API POST - Path:', path, 'Mapped URL:', url);
+                let payload = body;
+                const u = new URL('http://x/' + path);
+                if (u.pathname.includes('menu.php') && u.searchParams.get('action') === 'items') {
+                    const selectedRestaurantId = window.__currentRestaurantId;
+                    const categoryId = body.category_id;
+                    const categoriesArr = window.__cachedCategories || [];
+                    const categoryObj = categoriesArr.find(c => String(c.id) === String(categoryId));
+                    payload = {
+                        restaurant_id: selectedRestaurantId,
+                        category: categoryObj ? categoryObj.name : body.category_name || '',
+                        name: body.name,
+                        description: body.description,
+                        price: body.price,
+                        is_veg: body.is_veg
+                    };
+                }
+                console.log('API POST - Payload:', payload);
+                const res = await fetch(url, { 
+                    method: 'POST', 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    }, 
+                    body: JSON.stringify(payload) 
+                });
+                console.log('API POST - Response status:', res.status, res.statusText);
+                if (!res.ok) {
+                    let message = res.statusText;
+                    try { const err = await res.json(); message = err.message || message; } catch { const txt = await res.text(); message = txt || message; }
+                    console.error('API POST - Error response:', message);
+                    throw new Error(message);
+                }
+                const result = await res.json();
+                console.log('API POST - Result:', result);
+                return result;
+            },
+            async put(path, body) {
+                // Transform body for items PUT to match backend contract
+                const url = mapWrite(path, 'PUT');
+                let payload = body;
+                const u = new URL('http://x/' + path);
+                if (u.pathname.startsWith('menu.php') && u.searchParams.get('action') === 'items') {
+                    const categoryId = body.category_id;
+                    const categoriesArr = window.__cachedCategories || [];
+                    const categoryObj = categoriesArr.find(c => String(c.id) === String(categoryId));
+                    payload = {
+                        category: categoryObj ? categoryObj.name : body.category_name || '',
+                        name: body.name,
+                        description: body.description,
+                        price: body.price,
+                        is_veg: body.is_veg,
+                        is_available: body.is_available != null ? body.is_available : true
+                    };
+                }
+                const res = await fetch(url, { 
+                    method: 'PUT', 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    }, 
+                    body: JSON.stringify(payload) 
+                });
+                if (!res.ok) {
+                    let message = 'Network error';
+                    try { const err = await res.json(); message = err.message || message; } catch {}
+                    throw new Error(message);
+                }
+                return res.json();
+            },
+            async delete(path) {
+                const url = mapDelete(path);
+                const res = await fetch(url, { 
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (!res.ok) {
+                    let message = 'Network error';
+                    try { const err = await res.json(); message = err.message || message; } catch {}
+                    throw new Error(message);
+                }
+                return res.json();
+            }
+        };
+
+        function mapGet(path) {
+            // expected: 'menu.php?action=categories' or 'menu.php?action=items'
+            const u = new URL('http://x/' + path);
+            const action = u.searchParams.get('action');
+            console.log('mapGet - path:', path, 'action:', action, 'pathname:', u.pathname);
+            
+            if (u.pathname.includes('menu.php')) {
+                if (action === 'categories') {
+                    // Pass restaurant_id to filter categories
+                    const restaurantId = window.__currentRestaurantId;
+                    if (restaurantId) {
+                        console.log('Fetching categories for restaurant:', restaurantId);
+                        return `${API_BASE}/categories?restaurant_id=${restaurantId}`;
+                    }
+                    console.log('Fetching all categories');
+                    return `${API_BASE}/categories`;
+                }
+                if (action === 'items') {
+                    // requires restaurant slug
+                    const slug = window.__currentRestaurantSlug || '';
+                    console.log('Fetching menu items for:', slug);
+                    if (!slug) {
+                        console.warn('No restaurant slug selected');
+                        return null;
+                    }
+                    return `${API_BASE}/menu/${encodeURIComponent(slug)}`;
+                }
+            }
+            console.error('mapGet - unmatched path:', path);
+            return null; // Return null instead of invalid endpoint
+        }
+
+        function mapWrite(path, method) {
+            const u = new URL('http://x/' + path);
+            const action = u.searchParams.get('action');
+            const id = u.searchParams.get('id');
+            if (u.pathname.includes('menu.php')) {
+                if (action === 'categories') {
+                    if (method === 'POST') return `${API_BASE}/categories`;
+                    if (method === 'PUT' && id) return `${API_BASE}/categories/${id}`;
+                }
+                if (action === 'items') {
+                    if (method === 'POST') return `${API_BASE}/menu/add`;
+                    if (method === 'PUT' && id) return `${API_BASE}/menu/${id}`;
+                }
+            }
+            return `${API_BASE}`;
+        }
+
+        function mapDelete(path) {
+            const u = new URL('http://x/' + path);
+            const action = u.searchParams.get('action');
+            const id = u.searchParams.get('id');
+            if (u.pathname.startsWith('menu.php')) {
+                if (action === 'items' && id) {
+                    return `${API_BASE}/menu/${id}`;
+                }
+                if (action === 'categories' && id === 'all') {
+                    // call admin wipe endpoint to clear menu_items and categories
+                    return `${API_BASE}/admin/wipe-menu`;
+                }
+            }
+            return `${API_BASE}`;
+        }
+
+        // Load restaurants and wire selector
+        async function loadRestaurants() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await res.json();
+                const sel = document.getElementById('restaurantSelect');
+                window.__restaurants = data.restaurants || [];
+                sel.innerHTML = '<option value="">Choose a restaurant...</option>' + window.__restaurants.map(r => `<option value="${r.slug}">${r.name}</option>`).join('');
+                
+                // Refresh search data if search functionality is already initialized
+                if (window.storeRestaurants) {
+                    window.storeRestaurants();
+                }
+            } catch (e) {
+                showNotification('Failed to load restaurants', 'error');
+            }
+        }
+
+        // Inject the provided MenuManager class (from your message)
+        (function(){
+            class MenuManager {
+                constructor() {
+                    this.categories = [];
+                    this.menuItems = [];
+                    this.currentView = 'categories'; // 'categories' or 'items'
+                    this.selectedCategory = null;
+                    this.editingItem = null;
+                    this.keepModalOpen = false;
+                    this.selectedCategoryForForm = null;
+                    this.editingCategory = null;
+                }
+
+                async init() {
+                    await this.loadData();
+                    this.renderMenuManagement();
+                    this.setupEventListeners();
+                }
+
+                async loadData() {
+                    try {
+                        const categoriesData = await API.get('menu.php?action=categories');
+                        this.categories = (categoriesData && categoriesData.categories) ? categoriesData.categories : (categoriesData || []);
+                        window.__cachedCategories = this.categories;
+                        console.log('Loaded categories:', this.categories.length, 'categories');
+
+                        // Only fetch items if a restaurant is selected
+                        if (window.__currentRestaurantSlug) {
+                            const menuItemsData = await API.get('menu.php?action=items');
+                            if (menuItemsData && menuItemsData.categories) {
+                                const arr = [];
+                                for (const [cat, items] of Object.entries(menuItemsData.categories)) {
+                                    items.forEach(it => arr.push({ ...it, category_name: cat }));
+                                }
+                                this.menuItems = arr;
+                                console.log('Loaded menu items:', this.menuItems.length, 'items');
+                            } else {
+                                this.menuItems = menuItemsData || [];
+                            }
+                        } else {
+                            this.menuItems = [];
+                        }
+                        
+                        // Success - no error notification
+                        return true;
+                    } catch (error) {
+                        console.error('Failed to load menu data:', error);
+                        showNotification('Failed to load menu data: ' + error.message, 'error');
+                        return false;
+                    }
+                }
+
+                renderMenuManagement() {
+                    const menuContent = document.getElementById('menu-content');
+                    if (!menuContent) return;
+
+                    const isViewingCategoryItems = this.selectedCategory && this.selectedCategory !== 'all';
+
+                    menuContent.innerHTML = `
+                        ${!isViewingCategoryItems ? `
+                            <div class="menu-management-header">
+                                <h2>Menu Management</h2>
+                                <div class="menu-actions">
+                                    <button class="btn btn-outline-primary add-category-btn">
+                                        <i class="fas fa-plus"></i> Add Category
+                                    </button>
+                                    <button class="btn btn-primary add-menu-item-btn">
+                                        <i class="fas fa-plus"></i> Add Menu Item
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="menu-filters">
+                                <div class="filter-group">
+                                    <label for="category-filter">Filter by Category:</label>
+                                    <select id="category-filter" class="category-filter">
+                                        <option value="all">All Categories</option>
+                                        ${this.categories.map(category => 
+                                            `<option value="${category.name}" ${this.selectedCategory === category.name ? 'selected' : ''}>${category.name}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div class="search-group">
+                                    <input type="text" id="menu-search" placeholder="Search menu items..." class="search-input">
+                                    <button class="btn btn-danger delete-all-categories-btn">
+                                        <i class="fas fa-trash-alt"></i> Delete All Categories
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="menu-grid">
+                                ${this.renderCurrentView()}
+                            </div>
+                        ` : `
+                            <div class="category-items-container">
+                                ${this.renderCurrentView()}
+                            </div>
+                        `}
+
+                        ${this.renderModals()}
+                    `;
+
+                    if (!isViewingCategoryItems) {
+                        this.updateCategoryFilter();
+                        this.attachCategoryImageHandlers();
+                    } else {
+                        setTimeout(() => {
+                            this.setupCategorySearch();
+                            this.setupAddMenuItemFromCategory();
+                        }, 100);
+                    }
+
+                    if (this.keepModalOpen) {
+                        setTimeout(() => {
+                            const modal = document.getElementById('addMenuItemModal');
+                            if (modal) {
+                                modal.style.display = 'flex';
+                            }
+                            this.keepModalOpen = false;
+                        }, 100);
+                    }
+                }
+
+                renderCurrentView() {
+                    if (this.selectedCategory && this.selectedCategory !== 'all') {
+                        return this.renderCategoryItems(this.selectedCategory);
+                    } else {
+                        return this.renderCategoriesView();
+                    }
+                }
+
+                renderCategoriesView() {
+                    // Require a selected restaurant
+                    if (!window.__currentRestaurantSlug) {
+                        return '<div class="empty-state">Select a restaurant to view and manage menu categories</div>';
+                    }
+
+                    // Show message if no categories at all
+                    if (!this.categories.length && !this.menuItems.length) {
+                        return '<div class="empty-state">No categories found. Click "Add Category" to get started.</div>';
+                    }
+
+                    // Build a map of categories ONLY from categories table to avoid showing deleted ones
+                    const categoryMap = {};
+                    this.categories.forEach(cat => {
+                        categoryMap[cat.name] = { category: cat, items: [], image_url: this.normalizeImageUrl(cat.image_url || '') };
+                    });
+                    // Then, add items to existing categories
+                    this.menuItems.forEach(item => {
+                        const catName = item.category_name || item.category || 'Uncategorized';
+                        if (categoryMap[catName]) {
+                            categoryMap[catName].items.push(item);
+                        }
+                    });
+
+                    // Render all categories
+                    return Object.entries(categoryMap).map(([categoryName, data]) => {
+                        const category = data.category;
+                        const itemCount = data.items.length;
+                        const safeName = this.escapeAttr(categoryName);
+                        const normalizedImageUrl = this.normalizeImageUrl(data.image_url || category.image_url || '');
+                        const safeImage = this.escapeAttr(normalizedImageUrl);
+                        const imageHtml = (safeImage && safeImage.trim() !== '')
+                            ? `<img src="${safeImage}" alt="${safeName}" loading="lazy" decoding="async">`
+                            : '<div class="no-image"><i class="fas fa-utensils"></i></div>';
+                        return `
+                            <div class="category-card">
+                                <div class="category-image">
+                                    ${imageHtml}
+                                </div>
+                                <div class="category-content">
+                                    <div class="category-header">
+                                        <h3>${safeName}</h3>
+                                        <span class="item-count">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div class="category-description">
+                                        <p>${category.description || 'No description available'}</p>
+                                    </div>
+                                    <div class="category-actions">
+                                        <button class="btn btn-view view-category-items" data-category-id="${category.id || ''}" data-category-name="${categoryName}">
+                                            <i class="fas fa-eye"></i> View Items
+                                        </button>
+                                        <button class="btn btn-edit edit-category" data-category-id="${category.id || ''}" ${category.id ? '' : 'disabled'}>
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                        <button class="btn btn-delete delete-category" data-category-id="${category.id || ''}" data-category-name="${categoryName}" ${category.id ? '' : 'disabled'}>
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                        <div style="display:inline-flex;gap:8px;align-items:center;">
+                                            <label class="btn btn-outline-primary" for="file-${category.id || categoryName}" style="margin:0;">
+                                                <i class="fas fa-file"></i> Choose File
+                                            </label>
+                                            <input type="file" id="file-${category.id || categoryName}" accept=".xlsx,.xls,.csv" data-import-input="${category.id || ''}" style="display:none" />
+                                            <button class="btn btn-primary upload-file-btn" data-category-id="${category.id || ''}" data-category-name="${categoryName}" data-file-input="file-${category.id || categoryName}">
+                                                <i class="fas fa-upload"></i> Upload
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                renderCategoryItems(categoryName) {
+                    const category = this.categories.find(c => c.name === categoryName);
+                    const categoryItems = this.menuItems.filter(item => item.category_name === categoryName);
+
+                    if (!categoryItems.length) {
+                        return `
+                            <div class="category-items-simple-header">
+                                <button class="back-btn back-to-categories"><span>←</span><span>Back</span></button>
+                                <h2 style="margin:0;">${categoryName}</h2>
+                                <button class="btn add-menu-item-btn primary-cta" data-category="${categoryName}">
+                                    <i class="fas fa-plus"></i> Add Item
+                                </button>
+                            </div>
+                            <div class="empty-state">
+                                <div class="empty-content">
+                                    <i class="fas fa-utensils"></i>
+                                    <h3>No items in this category</h3>
+                                    <p>Start by adding your first menu item to this category</p>
+                                    <button class="btn btn-primary add-menu-item-btn" data-category="${categoryName}">
+                                        <i class="fas fa-plus"></i> Add Menu Item
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    const itemsHtml = categoryItems.map(rawItem => {
+                        const imgUrl = this.normalizeImageUrl(rawItem.image_url || '');
+                        const hasImg = !!(rawItem.image_url && imgUrl);
+                        const price = parseFloat(rawItem.price);
+                        const safeName = this.escapeAttr(rawItem.name || '');
+                        const desc = rawItem.description ? `<p class="item-description" style="margin:0;color:#374151">${rawItem.description}</p>` : '';
+                        const imgTag = hasImg
+                            ? `<img src="${imgUrl}" alt="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'image-placeholder',innerHTML:'<i class\\=\\'fas fa-image\\'></i>'}))" style="width:120px;height:90px;object-fit:cover;border-radius:8px;flex-shrink:0;">`
+                            : `<div class="image-placeholder"><i class="fas fa-image"></i></div>`;
+                        
+                        // Generate veg/non-veg icon
+                        let vegIcon = '';
+                        if (rawItem.is_veg === true || rawItem.is_veg === 1 || rawItem.is_veg === '1') {
+                            vegIcon = `<div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:2px solid #22c55e;border-radius:2px;flex-shrink:0;margin-right:8px;" title="Vegetarian"><div style="width:8px;height:8px;background:#22c55e;border-radius:50%;"></div></div>`;
+                        } else if (rawItem.is_veg === false || rawItem.is_veg === 0 || rawItem.is_veg === '0') {
+                            vegIcon = `<div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:2px solid #ef4444;border-radius:2px;flex-shrink:0;margin-right:8px;" title="Non-Vegetarian"><div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid #ef4444;"></div></div>`;
+                        }
+                        
+                        return `
+                            <div class="vertical-item-card" data-item-name="${(rawItem.name || '').toLowerCase()}" data-item-description="${((rawItem.description || '')).toLowerCase()}" style="display:flex;align-items:flex-start;gap:12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
+                                ${imgTag}
+                                <div class="item-info-section" style="flex:1;">
+                                    <div class="item-title-row" style="display:flex;align-items:center;gap:10px;">
+                                        ${vegIcon}<h3 class="item-name" style="margin:0;">${safeName}</h3>
+                                        <span class="item-code" style="color:#6b7280">#${rawItem.item_code || rawItem.id}</span>
+                                    </div>
+                                    <div class="item-details-row" style="display:flex;gap:14px;margin:6px 0;">
+                                        <span class="item-price" style="font-weight:600;color:#059669">₹${!isNaN(price) ? price.toFixed(2) : '0.00'}</span>
+                                        <span class="item-prep-time" style="color:#6b7280">${rawItem.preparation_time || 15} mins</span>
+                                    </div>
+                                    ${desc}
+                                </div>
+                                <div class="item-action-icons" style="display:flex;gap:8px;">
+                                    <button class="btn btn-secondary edit-item-btn" data-item-id="${rawItem.id}">Edit</button>
+                                    <button class="btn btn-danger delete-item-btn" data-item-id="${rawItem.id}">Delete</button>
+                                </div>
+                            </div>`;
+                    }).join('');
+
+                    return `
+                        <div class="category-items-simple-header">
+                            <button class="back-btn back-to-categories"><span>←</span><span>Back</span></button>
+                            <h2 style="margin:0;flex:1">${categoryName}</h2>
+                            <button class="btn btn-danger delete-all-items-btn" data-category="${categoryName}" style="margin-right:8px;">
+                                <i class="fas fa-trash-alt"></i> Delete All Items
+                            </button>
+                            <button class="btn add-menu-item-btn primary-cta" data-category="${categoryName}">
+                                <i class="fas fa-plus"></i> Add Item
+                            </button>
+                        </div>
+                        <div class="category-search-section">
+                            <div class="search-input-container">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="category-items-search" placeholder="Search items in ${categoryName}..." class="search-input">
+                            </div>
+                        </div>
+                        <div class="vertical-items-list" id="category-items-list" style="display:flex;flex-direction:column;gap:12px;">
+                            ${itemsHtml}
+                        </div>
+                    `;
+                }
+
+                renderModals() {
+                    return `
+                        <!-- Add Category Modal -->
+                        <div class="modal" id="addCategoryModal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add New Category</h3>
+                                    <button class="close-modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="addCategoryForm">
+                                        <div class="form-group">
+                                            <label for="categoryName">Category Name *</label>
+                                            <input type="text" id="categoryName" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="categoryDescription">Description</label>
+                                            <textarea id="categoryDescription" rows="3"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="categoryImageUrl">Category Image URL</label>
+                                            <input type="url" id="categoryImageUrl" placeholder="https://example.com/category-image.jpg">
+                                            <small style="color:#6b7280;font-size:0.85rem;display:block;margin-top:4px;">Optional: Add an image to make your category more appealing</small>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Add Category</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Category Modal -->
+                        <div class="modal" id="editCategoryModal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Edit Category</h3>
+                                    <button class="close-modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="editCategoryForm">
+                                        <div class="form-group">
+                                            <label for="editCategoryName">Category Name *</label>
+                                            <input type="text" id="editCategoryName" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="editCategoryDescription">Description</label>
+                                            <textarea id="editCategoryDescription" rows="3"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="editCategoryImageUrl">Category Image URL</label>
+                                            <input type="url" id="editCategoryImageUrl" placeholder="https://example.com/category-image.jpg">
+                                            <small style="color:#6b7280;font-size:0.85rem;display:block;margin-top:4px;">Optional: Add an image to make your category more appealing</small>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Add Menu Item Modal -->
+                        <div class="modal" id="addMenuItemModal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add New Menu Item</h3>
+                                    <button class="close-modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="item-code-display-small">
+                                        <span class="item-code-label">Item Code:</span>
+                                        <span class="item-code-value-small" id="nextItemCode">Loading...</span>
+                                    </div>
+                                    <form id="addMenuItemForm">
+                                        <div class="form-group">
+                                            <label for="itemName">Item Name *</label>
+                                            <input type="text" id="itemName" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="itemCategory">Category *</label>
+                                            <select id="itemCategory" required>
+                                                <option value="">Select Category</option>
+                                                ${this.categories.map(category => 
+                                                    `<option value="${category.id}">${category.name}</option>`
+                                                ).join('')}
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="itemPrice">Price (₹) *</label>
+                                            <input type="number" id="itemPrice" step="0.01" min="0" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="itemDescription">Description</label>
+                                            <textarea id="itemDescription" rows="3"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #374151;">Food Type:</label>
+                                            <div style="display: flex; gap: 20px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                                <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                                                    <input type="radio" name="itemFoodType" value="1" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #22c55e; border-radius: 3px; margin-right: 8px; position: relative; background: #f0fdf4;">
+                                                        <span style="display: block; width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></span>
+                                                    </span>
+                                                    <span style="color: #15803d; font-weight: 600; font-size: 15px;">Vegetarian</span>
+                                                </label>
+                                                <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                                                    <input type="radio" name="itemFoodType" value="0" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #ef4444; border-radius: 3px; margin-right: 8px; position: relative; background: #fef2f2;">
+                                                        <span style="display: block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #ef4444;"></span>
+                                                    </span>
+                                                    <span style="color: #dc2626; font-weight: 600; font-size: 15px;">Non-Vegetarian</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Add Item</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Item Modal -->
+                        <div class="modal" id="editMenuItemModal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Edit Menu Item</h3>
+                                    <button class="close-modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="editMenuItemForm">
+                                        <div class="form-group">
+                                            <label for="editItemName">Item Name *</label>
+                                            <input type="text" id="editItemName" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="editItemCategory">Category *</label>
+                                            <select id="editItemCategory" required>
+                                                ${this.categories.map(category => 
+                                                    `<option value="${category.id}">${category.name}</option>`
+                                                ).join('')}
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="editItemPrice">Price (₹) *</label>
+                                            <input type="number" id="editItemPrice" step="0.01" min="0" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="editItemDescription">Description</label>
+                                            <textarea id="editItemDescription" rows="3"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #374151;">Food Type:</label>
+                                            <div style="display: flex; gap: 20px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                                <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                                                    <input type="radio" name="editItemFoodType" value="1" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #22c55e; border-radius: 3px; margin-right: 8px; position: relative; background: #f0fdf4;">
+                                                        <span style="display: block; width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></span>
+                                                    </span>
+                                                    <span style="color: #15803d; font-weight: 600; font-size: 15px;">Vegetarian</span>
+                                                </label>
+                                                <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                                                    <input type="radio" name="editItemFoodType" value="0" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #ef4444; border-radius: 3px; margin-right: 8px; position: relative; background: #fef2f2;">
+                                                        <span style="display: block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #ef4444;"></span>
+                                                    </span>
+                                                    <span style="color: #dc2626; font-weight: 600; font-size: 15px;">Non-Vegetarian</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Update Item</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                setupEventListeners() {
+                    document.addEventListener('change', (e) => {
+                        if (e.target.id === 'category-filter') {
+                            this.selectedCategory = e.target.value === 'all' ? null : e.target.value;
+                            this.renderMenuManagement();
+                        }
+                    });
+
+                    document.addEventListener('input', (e) => {
+                        if (e.target.id === 'menu-search') {
+                            this.handleSearch(e.target.value);
+                        }
+                    });
+                }
+
+                updateCategoryFilter() {
+                    const categoryFilter = document.getElementById('category-filter');
+                    if (!categoryFilter) return;
+
+                    categoryFilter.innerHTML = `
+                        <option value="all">All Categories</option>
+                        ${this.categories.map(category => 
+                            `<option value="${category.name}" ${this.selectedCategory === category.name ? 'selected' : ''}>${category.name}</option>`
+                        ).join('')}
+                    `;
+                }
+
+                showModal(modalId) {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                }
+
+                hideModal(modalId) {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'none';
+                        if (modalId !== 'addMenuItemModal') {
+                            const form = modal.querySelector('form');
+                            if (form) form.reset();
+                        }
+                    }
+                }
+
+                attachCategoryImageHandlers() {
+                    const containers = document.querySelectorAll('.category-card .category-image');
+                    containers.forEach(container => {
+                        const img = container.querySelector('img');
+                        if (img && !img.dataset.errorHandled) {
+                            img.dataset.errorHandled = '1';
+                            img.addEventListener('error', () => {
+                                container.innerHTML = '<div class="no-image"><i class="fas fa-utensils"></i></div>';
+                            }, { once: true });
+                        }
+                    });
+                }
+
+                escapeAttr(value) {
+                    return String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                }
+
+                normalizeImageUrl(url) {
+                    if (!url) return '';
+                    let trimmed = String(url).trim();
+                    try {
+                        const u = new URL(trimmed);
+                        // Handle Google Images redirect links: https://www.google.com/imgres?...&imgurl=ENCODED
+                        if (u.host.includes('google.') && u.pathname.includes('imgres')) {
+                            const imgurl = u.searchParams.get('imgurl');
+                            if (imgurl) return decodeURIComponent(imgurl);
+                        }
+                    } catch {}
+                    if (/^(https?:)?\/\//i.test(trimmed) || /^(data:|blob:)/i.test(trimmed)) {
+                        return trimmed;
+                    }
+                    if (/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(\/.*)?$/.test(trimmed)) {
+                        trimmed = 'https://' + trimmed;
+                        return trimmed;
+                    }
+                    if (trimmed.startsWith('/')) {
+                        return trimmed;
+                    }
+                    return 'https://' + trimmed;
+                }
+
+                async handleAddCategory() {
+                    if (!window.__currentRestaurantId) {
+                        showNotification('Please select a restaurant first', 'error');
+                        return;
+                    }
+
+                    const formData = {
+                        restaurant_id: window.__currentRestaurantId,
+                        name: document.getElementById('categoryName').value.trim(),
+                        description: document.getElementById('categoryDescription').value.trim(),
+                        image_url: document.getElementById('categoryImageUrl').value.trim() || null,
+                        color: '#667eea',
+                        sort_order: 0
+                    };
+
+                    if (!formData.name) {
+                        showNotification('Category name is required', 'error');
+                        return;
+                    }
+
+                    try {
+                        showLoading(true);
+                        console.log('Adding category:', formData);
+                        const result = await API.post('menu.php?action=categories', formData);
+                        console.log('Add category result:', result);
+                        
+                        if (result.success) {
+                            showNotification('Category added successfully', 'success');
+                            await this.loadData();
+                            this.renderMenuManagement();
+                            this.hideModal('addCategoryModal');
+                            document.getElementById('addCategoryForm').reset();
+                        } else {
+                            showNotification(result.message || 'Failed to add category', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Failed to add category:', error);
+                        showNotification('Failed to add category: ' + error.message, 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+
+                async editCategory(categoryId) {
+                    const category = this.categories.find(c => c.id == categoryId);
+                    if (!category) return;
+
+                    this.editingCategory = category;
+
+                    const nameInput = document.getElementById('editCategoryName');
+                    const descInput = document.getElementById('editCategoryDescription');
+                    const imgInput = document.getElementById('editCategoryImageUrl');
+
+                    if (nameInput) nameInput.value = category.name || '';
+                    if (descInput) descInput.value = category.description || '';
+                    if (imgInput) imgInput.value = category.image_url || '';
+
+                    this.showModal('editCategoryModal');
+                }
+
+                async handleEditCategory() {
+                    if (!this.editingCategory) return;
+
+                    const formData = {
+                        name: document.getElementById('editCategoryName').value.trim(),
+                        description: document.getElementById('editCategoryDescription').value.trim(),
+                        image_url: document.getElementById('editCategoryImageUrl').value.trim(),
+                        // Ensure backend-required fields are always present
+                        color: this.editingCategory.color || '#667eea',
+                        sort_order: typeof this.editingCategory.sort_order === 'number' ? this.editingCategory.sort_order : 0
+                    };
+
+                    if (!formData.name) {
+                        showNotification('Category name is required', 'error');
+                        return;
+                    }
+
+                    try {
+                        showLoading(true);
+                        await API.put(`menu.php?action=categories&id=${this.editingCategory.id}`, formData);
+                        showNotification('Category updated successfully', 'success');
+                        await this.loadData();
+                        this.renderMenuManagement();
+                        this.hideModal('editCategoryModal');
+                        this.editingCategory = null;
+                    } catch (error) {
+                        console.error('Failed to update category:', error);
+                        showNotification('Failed to update category: ' + (error.message || ''), 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+
+                async handleAddMenuItem() {
+                    if (this.isSubmitting) { return; }
+                    this.isSubmitting = true;
+
+                    const foodTypeRadio = document.querySelector('input[name="itemFoodType"]:checked');
+                    const is_veg = foodTypeRadio ? (foodTypeRadio.value === '1' ? 1 : 0) : null;
+
+                    const formData = {
+                        name: document.getElementById('itemName').value.trim(),
+                        category_id: document.getElementById('itemCategory').value,
+                        price: parseFloat(document.getElementById('itemPrice').value),
+                        description: document.getElementById('itemDescription').value.trim(),
+                        is_veg: is_veg
+                    };
+
+                    if (!formData.name || !formData.category_id || !formData.price) {
+                        showNotification('Name, category, and price are required', 'error');
+                        this.isSubmitting = false;
+                        return;
+                    }
+
+                    try {
+                        showLoading(true);
+                        await API.post('menu.php?action=items', formData);
+                        showNotification('Menu item added successfully', 'success');
+                        const selectedCategoryId = document.getElementById('itemCategory').value;
+                        this.selectedCategoryForForm = selectedCategoryId;
+                        this.keepModalOpen = true;
+                        await this.loadData();
+                        this.renderMenuManagement();
+                        setTimeout(() => {
+                            document.getElementById('addMenuItemForm').reset();
+                            document.getElementById('itemPrepTime').value = 15;
+                            if (this.selectedCategoryForForm) {
+                                document.getElementById('itemCategory').value = this.selectedCategoryForForm;
+                            }
+                            this.updateNextItemCode();
+                            const nameField = document.getElementById('itemName');
+                            if (nameField) { nameField.focus(); }
+                        }, 200);
+                    } catch (error) {
+                        console.error('Failed to add menu item:', error);
+                        showNotification('Failed to add menu item: ' + (error.message || ''), 'error');
+                    } finally {
+                        showLoading(false);
+                        this.isSubmitting = false;
+                    }
+                }
+
+                async handleEditMenuItem() {
+                    if (!this.editingItem) return;
+
+                    const foodTypeRadio = document.querySelector('input[name="editItemFoodType"]:checked');
+                    const is_veg = foodTypeRadio ? (foodTypeRadio.value === '1' ? 1 : 0) : null;
+
+                    const formData = {
+                        name: document.getElementById('editItemName').value.trim(),
+                        category_id: document.getElementById('editItemCategory').value,
+                        price: parseFloat(document.getElementById('editItemPrice').value),
+                        description: document.getElementById('editItemDescription').value.trim(),
+                        is_veg: is_veg
+                    };
+
+                    try {
+                        showLoading(true);
+                        await API.put(`menu.php?action=items&id=${this.editingItem.id}`, formData);
+                        showNotification('Menu item updated successfully', 'success');
+                        await this.loadData();
+                        this.renderMenuManagement();
+                        this.hideModal('editMenuItemModal');
+                        this.editingItem = null;
+                    } catch (error) {
+                        console.error('Failed to update menu item:', error);
+                        showNotification('Failed to update menu item', 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+
+                async editMenuItem(itemId) {
+                    const item = this.menuItems.find(i => i.id == itemId);
+                    if (!item) return;
+
+                    console.log('Editing item:', item);
+                    console.log('Available categories:', this.categories);
+
+                    this.editingItem = item;
+                    document.getElementById('editItemName').value = item.name;
+                    document.getElementById('editItemPrice').value = item.price;
+                    document.getElementById('editItemDescription').value = item.description || '';
+                    
+                    // Populate category dropdown with all available categories
+                    const categorySelect = document.getElementById('editItemCategory');
+                    categorySelect.innerHTML = '<option value="">Select Category</option>' + 
+                        this.categories.map(category => 
+                            `<option value="${category.id}">${category.name}</option>`
+                        ).join('');
+                    
+                    // Find the correct category ID by matching category name
+                    let correctCategoryId = item.category_id;
+                    if (!correctCategoryId && item.category_name) {
+                        // If we have category_name but no category_id, find the matching category
+                        const matchingCategory = this.categories.find(cat => cat.name === item.category_name);
+                        if (matchingCategory) {
+                            correctCategoryId = matchingCategory.id;
+                        }
+                    }
+                    
+                    // Set the category value after populating
+                    setTimeout(() => {
+                        if (correctCategoryId) {
+                            console.log('Setting category ID:', correctCategoryId);
+                            document.getElementById('editItemCategory').value = correctCategoryId;
+                        } else {
+                            // If still no category found, try to match by name
+                            const categoryName = item.category_name || item.category;
+                            console.log('Trying to match category by name:', categoryName);
+                            if (categoryName) {
+                                const matchingCategory = this.categories.find(cat => cat.name === categoryName);
+                                if (matchingCategory) {
+                                    console.log('Found matching category:', matchingCategory);
+                                    document.getElementById('editItemCategory').value = matchingCategory.id;
+                                } else {
+                                    console.log('No matching category found for:', categoryName);
+                                }
+                            }
+                        }
+                    }, 100);
+                    
+                    // Set food type radio buttons
+                    const vegRadio = document.querySelector('input[name="editItemFoodType"][value="1"]');
+                    const nonVegRadio = document.querySelector('input[name="editItemFoodType"][value="0"]');
+                    if (item.is_veg === 1 || item.is_veg === true) {
+                        vegRadio.checked = true;
+                        nonVegRadio.checked = false;
+                    } else if (item.is_veg === 0 || item.is_veg === false) {
+                        vegRadio.checked = false;
+                        nonVegRadio.checked = true;
+                    } else {
+                        vegRadio.checked = false;
+                        nonVegRadio.checked = false;
+                    }
+                    
+                    this.showModal('editMenuItemModal');
+                }
+
+                async deleteMenuItem(itemId) {
+                    const item = this.menuItems.find(i => i.id == itemId);
+                    if (!item) return;
+
+                    if (!confirm(`Are you sure you want to delete "${item.name}"?`)) { return; }
+
+                    try {
+                        showLoading(true);
+                        await API.delete(`menu.php?action=items&id=${itemId}`);
+                        showNotification('Menu item deleted successfully', 'success');
+                        await this.loadData();
+                        this.renderMenuManagement();
+                    } catch (error) {
+                        console.error('Failed to delete menu item:', error);
+                        showNotification('Failed to delete menu item', 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+
+                async deleteAllCategories() {
+                    if (!window.__currentRestaurantId) {
+                        showNotification('Please select a restaurant first', 'error');
+                        return;
+                    }
+                    if (!confirm('Are you sure you want to delete ALL categories and menu items? This action cannot be undone!')) { return; }
+                    if (!confirm('This will permanently delete all your menu data. Are you absolutely sure?')) { return; }
+                    try {
+                        showLoading(true);
+                        
+                        // Delete all menu items first
+                        const deleteItemPromises = this.menuItems.map(item => 
+                            fetch(`${API_BASE}/menu/${item.id}`, { 
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }).then(r => r.json())
+                        );
+                        await Promise.all(deleteItemPromises);
+                        
+                        // Then delete all categories
+                        const deleteCategoryPromises = this.categories.map(cat => 
+                            fetch(`${API_BASE}/categories/${cat.id}`, { 
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }).then(r => r.json())
+                        );
+                        await Promise.all(deleteCategoryPromises);
+                        
+                        showNotification('All categories and menu items deleted successfully', 'success');
+                        await this.loadData();
+                        this.selectedCategory = null;
+                        this.renderMenuManagement();
+                    } catch (error) {
+                        console.error('Failed to delete all categories:', error);
+                        showNotification('Failed to delete all categories: ' + error.message, 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+
+                handleSearch(query) {
+                    const items = document.querySelectorAll('.simple-item-card, .category-card');
+                    const searchTerm = (query || '').toLowerCase();
+                    items.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        item.style.display = text.includes(searchTerm) ? '' : 'none';
+                    });
+                }
+
+                viewCategoryItems(categoryName) {
+                    this.selectedCategory = categoryName;
+                    this.renderMenuManagement();
+                }
+
+                backToCategories() {
+                    this.selectedCategory = null;
+                    this.renderMenuManagement();
+                }
+
+                updateNextItemCode() {
+                    const nextItemCode = this.menuItems.length + 1;
+                    const itemCodeElement = document.getElementById('nextItemCode');
+                    if (itemCodeElement) {
+                        itemCodeElement.textContent = `#${nextItemCode}`;
+                    }
+                }
+
+                setupCategorySearch() {
+                    const searchInput = document.getElementById('category-items-search');
+                    if (searchInput) {
+                        searchInput.addEventListener('input', (e) => {
+                            const searchTerm = e.target.value.toLowerCase();
+                            const items = document.querySelectorAll('.vertical-item-card');
+                            items.forEach(item => {
+                                const itemName = item.dataset.itemName || '';
+                                const itemDescription = item.dataset.itemDescription || '';
+                                const matches = itemName.includes(searchTerm) || itemDescription.includes(searchTerm);
+                                item.style.display = matches ? 'flex' : 'none';
+                            });
+                        });
+                    }
+                }
+
+                setupAddMenuItemFromCategory() {
+                    const addButtons = document.querySelectorAll('.add-menu-item-btn[data-category]');
+                    addButtons.forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            const categoryName = e.target.dataset.category;
+                            const category = this.categories.find(c => c.name === categoryName);
+                            if (category) {
+                                this.selectedCategoryForForm = category.id;
+                                setTimeout(() => {
+                                    const sel = document.getElementById('itemCategory');
+                                    if (sel) sel.value = String(category.id);
+                                    this.updateNextItemCode();
+                                }, 100);
+                                this.showModal('addMenuItemModal');
+                            }
+                        });
+                    });
+                }
+            }
+            window.MenuManager = MenuManager;
+        })();
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadRestaurants();
+            const sel = document.getElementById('restaurantSelect');
+            const searchInput = document.getElementById('restaurantSearch');
+            const mm = new window.MenuManager();
+            window.__menuManager = mm; // expose globally for event handlers
+            
+            function refresh() { if (window.__currentRestaurantSlug) { mm.init(); } }
+            sel.addEventListener('change', () => {
+                window.__currentRestaurantSlug = sel.value || '';
+                const selected = (window.__restaurants || []).find(r => r.slug === window.__currentRestaurantSlug);
+                window.__currentRestaurantId = selected ? selected.id : undefined;
+                refresh();
+            });
+            document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+            // Restaurant search functionality with dropdown suggestions
+            const suggestionsDiv = document.getElementById('searchSuggestions');
+            let allRestaurants = [];
+            
+            // Store all restaurants for search
+            const storeRestaurants = () => {
+                allRestaurants = [];
+                const options = sel.querySelectorAll('option');
+                options.forEach((option, index) => {
+                    if (index === 0) return; // Skip "Choose a restaurant..." option
+                    allRestaurants.push({
+                        id: option.value,
+                        name: option.textContent
+                    });
+                });
+            };
+            
+            // Make storeRestaurants globally accessible
+            window.storeRestaurants = storeRestaurants;
+            
+            // Initialize restaurant data
+            storeRestaurants();
+            
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                const options = sel.querySelectorAll('option');
+                
+                if (searchTerm.length === 0) {
+                    suggestionsDiv.style.display = 'none';
+                    // Reset all options to visible
+                    options.forEach(opt => opt.style.display = '');
+                    return;
+                }
+                
+                // Filter restaurants based on search term
+                const filteredRestaurants = allRestaurants.filter(restaurant => 
+                    restaurant.name.toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredRestaurants.length > 0) {
+                    // Show dropdown suggestions
+                    suggestionsDiv.innerHTML = filteredRestaurants.map(restaurant => `
+                        <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:14px;" 
+                             onmouseover="this.style.backgroundColor='#f9fafb'" 
+                             onmouseout="this.style.backgroundColor='white'"
+                             onclick="selectRestaurantFromSearch('${restaurant.id}', '${restaurant.name}')">
+                            ${restaurant.name}
+                        </div>
+                    `).join('');
+                    suggestionsDiv.style.display = 'block';
+                } else {
+                    suggestionsDiv.innerHTML = '<div style="padding:8px 12px;color:#6b7280;font-size:14px;">No restaurants found</div>';
+                    suggestionsDiv.style.display = 'block';
+                }
+                
+                // Also filter dropdown options
+                options.forEach((option, index) => {
+                    if (index === 0) return; // Skip "Choose a restaurant..." option
+                    const text = option.textContent.toLowerCase();
+                    const matches = text.includes(searchTerm);
+                    option.style.display = matches ? '' : 'none';
+                });
+            });
+            
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                    suggestionsDiv.style.display = 'none';
+                }
+            });
+            
+            // Function to select restaurant from search suggestions
+            window.selectRestaurantFromSearch = function(restaurantId, restaurantName) {
+                sel.value = restaurantId;
+                searchInput.value = restaurantName;
+                suggestionsDiv.style.display = 'none';
+                sel.dispatchEvent(new Event('change'));
+            };
+
+            // Global event delegation for all dynamically generated buttons
+            document.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                // Add Category
+                if (target.classList.contains('add-category-btn')) {
+                    mm.showModal('addCategoryModal');
+                }
+                // Add Menu Item (global)
+                else if (target.classList.contains('add-menu-item-btn') && !target.dataset.category) {
+                    mm.updateNextItemCode();
+                    mm.showModal('addMenuItemModal');
+                }
+                // Close modals
+                else if (target.classList.contains('close-modal')) {
+                    const modal = target.closest('.modal');
+                    if (modal) mm.hideModal(modal.id);
+                }
+                // View Category Items
+                else if (target.classList.contains('view-category-items')) {
+                    const categoryName = target.dataset.categoryName;
+                    if (categoryName) mm.viewCategoryItems(categoryName);
+                }
+                // Edit Category
+                else if (target.classList.contains('edit-category')) {
+                    const categoryId = target.dataset.categoryId;
+                    if (categoryId) mm.editCategory(categoryId);
+                }
+                // Delete Category
+                else if (target.classList.contains('delete-category')) {
+                    const categoryId = target.dataset.categoryId;
+                    if (categoryId && confirm('Delete this category?')) {
+                        // Call backend to delete category
+                        showLoading(true);
+                        fetch(`${API_BASE}/categories/${categoryId}`, { 
+                            method: 'DELETE',
+                            headers: getAuthHeaders()
+                        })
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.success) {
+                                    showNotification('Category deleted', 'success');
+                                    mm.loadData().then(() => mm.renderMenuManagement());
+                                } else {
+                                    showNotification('Failed to delete category', 'error');
+                                }
+                            })
+                            .catch(() => showNotification('Error deleting category', 'error'))
+                            .finally(() => showLoading(false));
+                    }
+                }
+                // Upload File button for bulk import
+                else if (target.classList.contains('upload-file-btn')) {
+                    console.log('[UPLOAD] Upload button clicked');
+                    const catId = target.dataset.categoryId;
+                    const catName = target.dataset.categoryName;
+                    const fileInputId = target.dataset.fileInput;
+                    if (!window.__currentRestaurantId) {
+                        showNotification('Please select a restaurant first', 'error');
+                        return;
+                    }
+                    if (!catId && !catName) {
+                        showNotification('Category not resolved. Please select a category.', 'error');
+                        return;
+                    }
+                    const input = document.getElementById(fileInputId);
+                    if (!input || !input.files || !input.files[0]) {
+                        showNotification('Please choose a file first', 'error');
+                        return;
+                    }
+                    const file = input.files[0];
+                    console.log('[UPLOAD] File selected:', file.name, file.size);
+                    const formData = new FormData();
+                    formData.append('restaurant_id', window.__currentRestaurantId);
+                    if (catId) {
+                        formData.append('category_id', catId);
+                    } else if (catName) {
+                        formData.append('category_name', catName);
+                    }
+                    formData.append('file', file);
+                    
+                    (async () => {
+                        try {
+                            showLoading(true);
+                            showNotification(`Uploading ${file.name}...`, 'info');
+                            const isCsv = file.name.toLowerCase().endsWith('.csv');
+                            const endpoint = isCsv ? `${API_BASE}/menu/bulk-import-csv` : `${API_BASE}/menu/bulk-import`;
+                            console.log('[UPLOAD] Endpoint:', endpoint);
+                            const res = await fetch(endpoint, { 
+                                method: 'POST', 
+                                headers: getAuthHeaders(),
+                                body: formData 
+                            });
+                            console.log('[UPLOAD] Response status:', res.status);
+                            const data = await res.json().catch(() => ({}));
+                            console.log('[UPLOAD] Response data:', data);
+                            if (res.ok && data.success) {
+                                const errPreview = (Array.isArray(data.errors) && data.errors.length)
+                                  ? ` (skipped ${data.skipped}: e.g. row ${data.errors[0].row} - ${data.errors[0].reason})`
+                                  : '';
+                                showNotification(`Imported ${data.inserted} items${errPreview}`, 'success');
+                                input.value = ''; // Clear file input
+                                await mm.loadData();
+                                mm.renderMenuManagement();
+                            } else {
+                                let msg = data && data.message ? data.message : `Import failed (${res.status})`;
+                                if (Array.isArray(data.errors) && data.errors.length) {
+                                    const firstFive = data.errors.slice(0, 5).map(e => `Row ${e.row}: ${e.reason}`).join('\n');
+                                    msg += `\n\nDetails:\n${firstFive}${data.errors.length > 5 ? `\n...and ${data.errors.length - 5} more` : ''}`;
+                                }
+                                showNotification(msg, 'error');
+                            }
+                        } catch (e) {
+                            console.error('[UPLOAD] Error:', e);
+                            showNotification('Import failed: ' + e.message, 'error');
+                        } finally {
+                            showLoading(false);
+                        }
+                    })();
+                }
+                // Delete All Categories
+                else if (target.classList.contains('delete-all-categories-btn')) {
+                    mm.deleteAllCategories();
+                }
+                // Back to Categories
+                else if (target.classList.contains('back-to-categories')) {
+                    mm.backToCategories();
+                }
+                // Edit Menu Item
+                else if (target.classList.contains('edit-item-btn')) {
+                    const itemId = target.dataset.itemId;
+                    if (itemId) mm.editMenuItem(itemId);
+                }
+                // Delete Menu Item
+                else if (target.classList.contains('delete-item-btn')) {
+                    const itemId = target.dataset.itemId;
+                    if (!itemId) return;
+                    if (!confirm('Delete this menu item?')) return;
+                    showLoading(true);
+                    fetch(`${API_BASE}/menu/${itemId}`, { 
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) {
+                                showNotification('Menu item deleted successfully', 'success');
+                                mm.loadData().then(() => mm.renderMenuManagement());
+                            } else {
+                                showNotification('Failed to delete menu item: ' + (d.message || ''), 'error');
+                            }
+                        })
+                        .catch(e => showNotification('Failed to delete menu item: ' + e.message, 'error'))
+                        .finally(() => showLoading(false));
+                }
+                // Delete All Items in Category
+                else if (target.classList.contains('delete-all-items-btn')) {
+                    const categoryName = target.dataset.category;
+                    if (!categoryName) return;
+                    const categoryItems = mm.menuItems.filter(item => item.category_name === categoryName);
+                    if (categoryItems.length === 0) {
+                        showNotification('No items to delete in this category', 'info');
+                        return;
+                    }
+                    const confirmMsg = `Are you sure you want to delete all ${categoryItems.length} items in "${categoryName}"? This action cannot be undone.`;
+                    if (!confirm(confirmMsg)) return;
+                    
+                    showLoading(true);
+                    const deletePromises = categoryItems.map(item => 
+                        fetch(`${API_BASE}/menu/${item.id}`, { 
+                            method: 'DELETE',
+                            headers: getAuthHeaders()
+                        }).then(r => r.json())
+                    );
+                    
+                    Promise.all(deletePromises)
+                        .then(results => {
+                            const successCount = results.filter(r => r.success).length;
+                            const failCount = results.length - successCount;
+                            if (failCount === 0) {
+                                showNotification(`Successfully deleted all ${successCount} items from "${categoryName}"`, 'success');
+                            } else {
+                                showNotification(`Deleted ${successCount} items, ${failCount} failed`, 'warning');
+                            }
+                            mm.loadData().then(() => mm.renderMenuManagement());
+                        })
+                        .catch(e => {
+                            showNotification('Failed to delete items: ' + e.message, 'error');
+                        })
+                        .finally(() => showLoading(false));
+                }
+                // Toggle Availability
+                else if (target.classList.contains('toggle-availability')) {
+                    const itemId = target.dataset.itemId;
+                    if (itemId) {
+                        // Find item and toggle is_available
+                        const item = mm.menuItems.find(i => i.id == itemId);
+                        if (item) {
+                            const newAvailability = !item.is_available;
+                            showLoading(true);
+                            fetch(`${API_BASE}/menu/${itemId}`, {
+                                method: 'PUT',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    ...getAuthHeaders()
+                                },
+                                body: JSON.stringify({ ...item, is_available: newAvailability })
+                            })
+                                .then(r => r.json())
+                                .then(d => {
+                                    if (d.success) {
+                                        showNotification('Availability updated', 'success');
+                                        mm.loadData().then(() => mm.renderMenuManagement());
+                                    } else {
+                                        showNotification('Failed to update availability', 'error');
+                                    }
+                                })
+                                .catch(() => showNotification('Error updating availability', 'error'))
+                                .finally(() => showLoading(false));
+                        }
+                    }
+                }
+            });
+
+            // Form submission handlers
+            document.addEventListener('submit', (e) => {
+                if (e.target.id === 'addCategoryForm') {
+                    e.preventDefault();
+                    mm.handleAddCategory();
+                } else if (e.target.id === 'editCategoryForm') {
+                    e.preventDefault();
+                    mm.handleEditCategory();
+                } else if (e.target.id === 'addMenuItemForm') {
+                    e.preventDefault();
+                    mm.handleAddMenuItem();
+                } else if (e.target.id === 'editMenuItemForm') {
+                    e.preventDefault();
+                    mm.handleEditMenuItem();
+                }
+            });
+
+            // Close modals on background click
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal')) {
+                    mm.hideModal(e.target.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
+
