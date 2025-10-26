@@ -32,7 +32,7 @@ router.get('/restaurants', requireViewer, async (req, res) => {
     
     query += ` GROUP BY r.id ORDER BY r.id ASC`;
     
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     
     res.json({
       success: true,
@@ -53,7 +53,7 @@ router.get('/restaurants/:id', requireViewer, async (req, res) => {
     const { id } = req.params;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE id = ?',
       [id]
     );
@@ -68,7 +68,7 @@ router.get('/restaurants/:id', requireViewer, async (req, res) => {
     const restaurant = restaurantRows[0];
     
     // Get menu items grouped by category
-    const [menuRows] = await pool.execute(`
+    const [menuRows] = await pool.query(`
       SELECT 
         category,
         id,
@@ -140,7 +140,7 @@ router.post('/restaurants', canAddRestaurant, async (req, res) => {
     }
     
     // Check if slug already exists
-    const [existingRows] = await pool.execute(
+    const [existingRows] = await pool.query(
       'SELECT id FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -156,7 +156,7 @@ router.post('/restaurants', canAddRestaurant, async (req, res) => {
     const customSectionsJson = custom_sections ? JSON.stringify(custom_sections) : null;
     
     // Insert new restaurant
-    const [result] = await pool.execute(`
+    const [result] = await pool.query(`
       INSERT INTO restaurants (
         name, slug, logo_url, image_url, description,
         address, phone, wifi_name, wifi_password, custom_sections
@@ -193,7 +193,7 @@ router.put('/restaurants/:id', requireViewer, async (req, res) => {
     } = req.body;
     
     // Check if restaurant exists
-    const [existingRows] = await pool.execute(
+    const [existingRows] = await pool.query(
       'SELECT * FROM restaurants WHERE id = ?',
       [id]
     );
@@ -209,7 +209,7 @@ router.put('/restaurants/:id', requireViewer, async (req, res) => {
     
     // If slug is being changed, check if new slug already exists
     if (slug && slug !== current.slug) {
-      const [slugCheck] = await pool.execute(
+      const [slugCheck] = await pool.query(
         'SELECT id FROM restaurants WHERE slug = ? AND id != ?',
         [slug, id]
       );
@@ -229,7 +229,7 @@ router.put('/restaurants/:id', requireViewer, async (req, res) => {
     }
     
     // Update restaurant
-    await pool.execute(`
+    await pool.query(`
       UPDATE restaurants 
       SET name = ?, slug = ?, logo_url = ?, image_url = ?, description = ?,
           address = ?, phone = ?, wifi_name = ?, wifi_password = ?, custom_sections = ?
@@ -269,7 +269,7 @@ router.get('/qr/:slug', requireViewer, async (req, res) => {
     const { size = 200, margin = 2 } = req.query;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -314,7 +314,7 @@ router.get('/qr/:slug/download', requireViewer, async (req, res) => {
     const { slug } = req.params;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -347,8 +347,8 @@ router.get('/qr/:slug/download', requireViewer, async (req, res) => {
 // DANGEROUS: Delete ALL menu items and ALL categories
 router.delete('/wipe-menu', requireAdmin, async (req, res) => {
   try {
-    await pool.execute('DELETE FROM menu_items');
-    await pool.execute('DELETE FROM categories');
+    await pool.query('DELETE FROM menu_items');
+    await pool.query('DELETE FROM categories');
     res.json({ success: true, message: 'All menu items and categories deleted' });
   } catch (error) {
     console.error('Error wiping menu data:', error);
@@ -362,13 +362,13 @@ router.delete('/restaurants/:id', canDeleteRestaurant, async (req, res) => {
     const { id } = req.params;
 
     // Check existence
-    const [rows] = await pool.execute('SELECT id FROM restaurants WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Restaurant not found' });
     }
 
     // Deleting restaurant will cascade delete menu_items due to FK
-    await pool.execute('DELETE FROM restaurants WHERE id = ?', [id]);
+    await pool.query('DELETE FROM restaurants WHERE id = ?', [id]);
     res.json({ success: true, message: 'Restaurant deleted successfully' });
   } catch (error) {
     console.error('Error deleting restaurant:', error);
@@ -415,20 +415,20 @@ router.post('/restaurants/:id/reset-menu', canDeleteRestaurant, async (req, res)
 router.post('/reset-all', requireAdmin, async (req, res) => {
   try {
     // Disable foreign key checks temporarily
-    await pool.execute('SET FOREIGN_KEY_CHECKS = 0');
+    await pool.query('SET FOREIGN_KEY_CHECKS = 0');
     
     // Delete all data
-    await pool.execute('DELETE FROM menu_items');
-    await pool.execute('DELETE FROM restaurants');
-    await pool.execute('DELETE FROM categories');
+    await pool.query('DELETE FROM menu_items');
+    await pool.query('DELETE FROM restaurants');
+    await pool.query('DELETE FROM categories');
     
     // Reset auto-increment counters to 1
-    await pool.execute('ALTER TABLE restaurants AUTO_INCREMENT = 1');
-    await pool.execute('ALTER TABLE menu_items AUTO_INCREMENT = 1');
-    await pool.execute('ALTER TABLE categories AUTO_INCREMENT = 1');
+    await pool.query('ALTER TABLE restaurants AUTO_INCREMENT = 1');
+    await pool.query('ALTER TABLE menu_items AUTO_INCREMENT = 1');
+    await pool.query('ALTER TABLE categories AUTO_INCREMENT = 1');
     
     // Re-enable foreign key checks
-    await pool.execute('SET FOREIGN_KEY_CHECKS = 1');
+    await pool.query('SET FOREIGN_KEY_CHECKS = 1');
     
     res.json({ 
       success: true, 
@@ -480,7 +480,7 @@ router.get('/menu-items/search', canManageMenu, async (req, res) => {
     
     query += ` ORDER BY mi.item_code ASC`;
     
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     
     res.json({
       success: true,

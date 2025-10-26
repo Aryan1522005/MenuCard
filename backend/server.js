@@ -129,10 +129,12 @@ app.use((req, res) => {
 // Start server function
 const startServer = async () => {
   try {
-    console.log('✅ Database connected successfully');
-    
     // Test database connection
-    await testConnection();
+    const dbConnected = await testConnection();
+    
+    if (!dbConnected) {
+      console.log('⚠️ Database connection failed, but continuing with server startup...');
+    }
     
     // Start server
     app.listen(PORT, () => {

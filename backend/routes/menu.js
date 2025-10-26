@@ -18,25 +18,27 @@ router.get('/:slug', async (req, res) => {
     const { slug } = req.params;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
-      'SELECT * FROM restaurants WHERE slug = ?',
+    const restaurantResult = await pool.query(
+      'SELECT * FROM restaurants WHERE slug = $1',
       [slug]
     );
     
-    if (restaurantRows.length === 0) {
+    if (restaurantResult.rows.length === 0) {
       return res.status(404).json({ 
         success: false, 
         message: 'Restaurant not found' 
       });
     }
     
-    const restaurant = restaurantRows[0];
+    const restaurant = restaurantResult.rows[0];
     
     // Get categories with images
-    const [categoryRows] = await pool.execute(
-      'SELECT id, name, image_url FROM categories WHERE restaurant_id = ? ORDER BY id ASC',
+    const categoryResult = await pool.query(
+      'SELECT id, name, image_url FROM categories WHERE restaurant_id = $1 ORDER BY id ASC',
       [restaurant.id]
     );
+    
+    const categoryRows = categoryResult.rows;
     
     const categoryMap = {};
     const categoryOrder = [];
@@ -67,7 +69,7 @@ router.get('/:slug', async (req, res) => {
     
     try {
       // Try to add is_veg column if it exists
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -96,7 +98,7 @@ router.get('/:slug', async (req, res) => {
       console.log('is_veg column check failed, using basic query');
     }
     
-    const [menuRows] = await pool.execute(selectQuery, [restaurant.id]);
+    const [menuRows] = await pool.query(selectQuery, [restaurant.id]);
     
     // Group items by category using predefined category order
     const categories = {};
@@ -175,7 +177,7 @@ router.post('/add', verifyToken, canManageMenu, async (req, res) => {
     }
     
     // Compute the next item_code for this restaurant (starting at 1)
-    const [maxRows] = await pool.execute(
+    const [maxRows] = await pool.query(
       'SELECT COALESCE(MAX(item_code), 0) AS max_code FROM menu_items WHERE restaurant_id = ?',
       [restaurant_id]
     );
@@ -190,7 +192,7 @@ router.post('/add', verifyToken, canManageMenu, async (req, res) => {
     let insertParams = [restaurant_id, category, name, description, price, availability_time || null, !!is_available, sort_order, nextItemCode];
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -211,7 +213,7 @@ router.post('/add', verifyToken, canManageMenu, async (req, res) => {
     }
     
     // Insert new menu item
-    const [result] = await pool.execute(insertQuery, insertParams);
+    const [result] = await pool.query(insertQuery, insertParams);
     
     res.json({
       success: true,
@@ -234,7 +236,7 @@ router.delete('/:id', verifyToken, canManageMenu, async (req, res) => {
     const { id } = req.params;
     
     // Check if item exists
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       'SELECT id FROM menu_items WHERE id = ?',
       [id]
     );
@@ -247,7 +249,7 @@ router.delete('/:id', verifyToken, canManageMenu, async (req, res) => {
     }
     
     // Delete item
-    await pool.execute(
+    await pool.query(
       'DELETE FROM menu_items WHERE id = ?',
       [id]
     );
@@ -273,7 +275,7 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
     const { category, name, description, price, is_available, preparation_time, is_veg } = req.body;
 
     // Load existing item
-    const [rows] = await pool.execute('SELECT * FROM menu_items WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT * FROM menu_items WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -297,7 +299,7 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
     let updateParams = [newCategory, newName, newDescription, newPrice, newIsAvailable, newPrepTime, id];
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -315,7 +317,7 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
       console.log('is_veg column check failed, using basic update');
     }
 
-    await pool.execute(updateQuery, updateParams);
+    await pool.query(updateQuery, updateParams);
     
     res.json({
       success: true,
@@ -345,7 +347,7 @@ router.get('/:slug/search', async (req, res) => {
     }
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -383,7 +385,7 @@ router.get('/:slug/search', async (req, res) => {
     `;
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -418,7 +420,7 @@ router.get('/:slug/search', async (req, res) => {
       console.log('is_veg column check failed in search');
     }
     
-    const [menuRows] = await pool.execute(searchQuery, [restaurant.id, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
+    const [menuRows] = await pool.query(searchQuery, [restaurant.id, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
     
     // Group items by category
     const categories = {};
@@ -480,7 +482,7 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
     }
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -518,7 +520,7 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
     `;
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -553,7 +555,7 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
       console.log('is_veg column check failed in category search');
     }
     
-    const [menuRows] = await pool.execute(categorySearchQuery, [restaurant.id, categoryName, `%${searchTerm}%`, `%${searchTerm}%`]);
+    const [menuRows] = await pool.query(categorySearchQuery, [restaurant.id, categoryName, `%${searchTerm}%`, `%${searchTerm}%`]);
     
     res.json({
       success: true,
@@ -617,7 +619,7 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
     // Resolve category name
     let resolvedCategoryName = category_name;
     if (!resolvedCategoryName && category_id) {
-      const [rows] = await pool.execute('SELECT name FROM categories WHERE id = ? AND restaurant_id = ?', [category_id, restaurant_id]);
+      const [rows] = await pool.query('SELECT name FROM categories WHERE id = ? AND restaurant_id = ?', [category_id, restaurant_id]);
       if (rows.length === 0) {
         return res.status(400).json({ success: false, message: 'Invalid category_id for this restaurant' });
       }
@@ -673,7 +675,7 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
     };
 
     // Compute next item_code start
-    const [maxRows] = await pool.execute(
+    const [maxRows] = await pool.query(
       'SELECT COALESCE(MAX(item_code), 0) AS max_code FROM menu_items WHERE restaurant_id = ?',
       [restaurant_id]
     );
@@ -737,7 +739,7 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
       VALUES ?`;
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
@@ -779,7 +781,7 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
     // Resolve category name
     let resolvedCategoryName = category_name;
     if (!resolvedCategoryName && category_id) {
-      const [rows] = await pool.execute('SELECT name FROM categories WHERE id = ? AND restaurant_id = ?', [category_id, restaurant_id]);
+      const [rows] = await pool.query('SELECT name FROM categories WHERE id = ? AND restaurant_id = ?', [category_id, restaurant_id]);
       if (rows.length === 0) return res.status(400).json({ success: false, message: 'Invalid category_id for this restaurant' });
       resolvedCategoryName = rows[0].name;
     }
@@ -806,7 +808,7 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
     const norm = (s) => String(s || '').trim().toLowerCase();
 
     // Compute next item_code start
-    const [maxRows] = await pool.execute(
+    const [maxRows] = await pool.query(
       'SELECT COALESCE(MAX(item_code), 0) AS max_code FROM menu_items WHERE restaurant_id = ?',
       [restaurant_id]
     );
@@ -863,7 +865,7 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
       VALUES ?`;
     
     try {
-      const [checkColumn] = await pool.execute(`
+      const [checkColumn] = await pool.query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 

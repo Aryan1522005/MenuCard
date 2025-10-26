@@ -80,7 +80,7 @@ router.put('/:id', async (req, res) => {
         
         // Check if manager is trying to edit admin user
         if (req.user.role === 'manager') {
-            const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [id]);
+            const [users] = await pool.query('SELECT role FROM users WHERE id = ?', [id]);
             if (users.length > 0 && users[0].role === 'admin') {
                 return res.status(403).json({
                     success: false,
@@ -117,7 +117,7 @@ router.delete('/:id', async (req, res) => {
         
         // Check if manager is trying to delete admin user
         if (req.user.role === 'manager') {
-            const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [id]);
+            const [users] = await pool.query('SELECT role FROM users WHERE id = ?', [id]);
             if (users.length > 0 && users[0].role === 'admin') {
                 return res.status(403).json({
                     success: false,
@@ -158,7 +158,7 @@ router.post('/:id/change-password', async (req, res) => {
         
         // Check if manager is trying to change admin password
         if (req.user.role === 'manager') {
-            const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [id]);
+            const [users] = await pool.query('SELECT role FROM users WHERE id = ?', [id]);
             if (users.length > 0 && users[0].role === 'admin') {
                 return res.status(403).json({
                     success: false,

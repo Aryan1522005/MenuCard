@@ -10,7 +10,7 @@ router.get('/:slug', async (req, res) => {
     const { size = 200, margin = 2 } = req.query;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );
@@ -68,7 +68,7 @@ router.get('/:slug/download', async (req, res) => {
     const { size = 400, margin = 4 } = req.query;
     
     // Get restaurant info
-    const [restaurantRows] = await pool.execute(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = ?',
       [slug]
     );

@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 const login = async (username, password) => {
     try {
         // Get user from database
-        const [users] = await pool.execute(
+        const [users] = await pool.query(
             'SELECT id, username, password, role, full_name, email, is_active FROM users WHERE username = ? AND is_active = TRUE',
             [username]
         );
@@ -82,7 +82,7 @@ const createUser = async (userData) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Insert user into database
-        const [result] = await pool.execute(
+        const [result] = await pool.query(
             'INSERT INTO users (username, password, role, full_name, email) VALUES (?, ?, ?, ?, ?)',
             [username, hashedPassword, role, full_name, email]
         );
@@ -105,7 +105,7 @@ const createUser = async (userData) => {
 // Get all users
 const getAllUsers = async () => {
     try {
-        const [users] = await pool.execute(
+        const [users] = await pool.query(
             'SELECT id, username, role, full_name, email, is_active, created_at FROM users ORDER BY created_at DESC'
         );
         return users;
@@ -119,7 +119,7 @@ const updateUser = async (userId, userData) => {
     try {
         const { username, role, full_name, email, is_active } = userData;
         
-        await pool.execute(
+        await pool.query(
             'UPDATE users SET username = ?, role = ?, full_name = ?, email = ?, is_active = ? WHERE id = ?',
             [username, role, full_name, email, is_active, userId]
         );
@@ -136,7 +136,7 @@ const updateUser = async (userId, userData) => {
 // Delete user
 const deleteUser = async (userId) => {
     try {
-        await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+        await pool.query('DELETE FROM users WHERE id = ?', [userId]);
         return { success: true };
     } catch (error) {
         throw new Error('Failed to delete user: ' + error.message);
@@ -147,7 +147,7 @@ const deleteUser = async (userId) => {
 const changePassword = async (userId, newPassword) => {
     try {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await pool.execute(
+        await pool.query(
             'UPDATE users SET password = ? WHERE id = ?',
             [hashedPassword, userId]
         );

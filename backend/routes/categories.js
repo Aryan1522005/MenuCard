@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     
     query += ' ORDER BY id ASC';
     
-    const [categories] = await pool.execute(query, params);
+    const [categories] = await pool.query(query, params);
     
     res.json({
       success: true,
@@ -54,7 +54,7 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
       });
     }
     
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       'INSERT INTO categories (restaurant_id, name, description, image_url, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
       [restaurant_id, name, description, image_url, color, sort_order]
     );
@@ -150,7 +150,7 @@ router.delete('/:id', verifyToken, canManageMenu, async (req, res) => {
     const { id } = req.params;
     
     // Check if category is being used by menu items
-    const [menuItems] = await pool.execute(
+    const [menuItems] = await pool.query(
       'SELECT COUNT(*) as count FROM menu_items WHERE category_id = ?',
       [id]
     );
@@ -162,7 +162,7 @@ router.delete('/:id', verifyToken, canManageMenu, async (req, res) => {
       });
     }
     
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       'DELETE FROM categories WHERE id = ?',
       [id]
     );
