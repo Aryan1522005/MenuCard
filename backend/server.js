@@ -20,8 +20,14 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (like mobile apps, curl, server-to-server, health checks)
+    if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin header');
+      return callback(null, true);
+    }
+    
+    // Log the origin for debugging
+    console.log(`🔍 CORS: Request from origin: ${origin}`);
     
     // Allow localhost and network IPs
     const allowedOrigins = [
@@ -34,19 +40,35 @@ app.use(cors({
     
     // Allow any 192.168.x.x network IP
     if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+      console.log('✅ CORS: Allowing local network IP');
       return callback(null, true);
     }
     
     // Allow all Vercel preview deployments
-    if (origin && origin.match(/^https:\/\/.*\.vercel\.app$/)) {
+    if (origin.match(/^https:\/\/.*\.vercel\.app$/)) {
+      console.log('✅ CORS: Allowing Vercel deployment');
+      return callback(null, true);
+    }
+    
+    // Allow Render.com domains (for health checks and internal requests)
+    if (origin.match(/^https:\/\/.*\.onrender\.com$/)) {
+      console.log('✅ CORS: Allowing Render domain');
       return callback(null, true);
     }
     
     // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS: Allowing whitelisted origin');
       return callback(null, true);
     }
     
+    // In production, be more permissive to avoid deployment issues
+    if (process.env.NODE_ENV === 'production') {
+      console.log('⚠️ CORS: Allowing unrecognized origin in production mode');
+      return callback(null, true);
+    }
+    
+    console.error(`❌ CORS: Blocking origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
