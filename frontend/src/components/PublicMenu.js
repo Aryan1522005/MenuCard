@@ -292,6 +292,7 @@ const PublicMenu = () => {
                       <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)', zIndex:10 }} />
                       <div style={{ position:'absolute', inset:0, zIndex:20, display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center' }}>
                         <div style={{ color:'#fff', fontSize:20, fontWeight:700, textTransform:'uppercase', textShadow:'1px 1px 2px rgba(0,0,0,0.5)' }}>{categoryName}</div>
+                        <div style={{ color:'#fff', fontSize:14, fontWeight:500, textShadow:'1px 1px 2px rgba(0,0,0,0.5)', marginTop:4 }}>{items.length} items</div>
                       </div>
                     </button>
                   );
