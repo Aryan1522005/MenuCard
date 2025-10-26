@@ -28,11 +28,17 @@ app.use(cors({
       'http://localhost:3000',
       'http://localhost:5000',
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:5000'
+      'http://127.0.0.1:5000',
+      'https://menu-card-ylcn.vercel.app'  // Production frontend
     ];
     
     // Allow any 192.168.x.x network IP
     if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+      return callback(null, true);
+    }
+    
+    // Allow all Vercel preview deployments
+    if (origin && origin.match(/^https:\/\/.*\.vercel\.app$/)) {
       return callback(null, true);
     }
     
