@@ -6,20 +6,36 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // Database configuration for PostgreSQL (Neon)
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'qr_menu_system',
-  ssl: process.env.DB_HOST?.includes('neon.tech') ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-};
+// Support both DATABASE_URL (connection string) and individual env vars
+let pgPool;
 
-// Create the actual PostgreSQL pool
-const pgPool = new Pool(dbConfig);
+if (process.env.DATABASE_URL) {
+  // Use connection string if provided (Railway, Neon, etc.)
+  pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+} else {
+  // Use individual environment variables
+  const dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'qr_menu_system',
+    // Enable SSL for cloud databases (Neon, Railway, etc.)
+    ssl: process.env.NODE_ENV === 'production' || process.env.DB_HOST?.includes('neon') || process.env.DB_HOST?.includes('pooler') 
+      ? { rejectUnauthorized: false } 
+      : false,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000, // Increased timeout for cloud databases
+  };
+  pgPool = new Pool(dbConfig);
+}
 
 // Helper function to convert MySQL placeholders (?) to PostgreSQL ($1, $2, etc.)
 function convertPlaceholders(sql, params) {
