@@ -30,7 +30,8 @@ const MenuPage = () => {
         setCategoryOrder(response.categoryOrder || []);
         // After we know the restaurant id, fetch the full category list so we show all
         try {
-          const res = await fetch(`http://localhost:5000/api/categories?restaurant_id=${response.restaurant.id}`);
+          const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+          const res = await fetch(`${baseUrl}/categories?restaurant_id=${response.restaurant.id}`);
           const data = await res.json();
           if (data && data.success) {
             setCategoryList(Array.isArray(data.categories) ? data.categories : []);
