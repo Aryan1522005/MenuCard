@@ -1321,11 +1321,20 @@
         }
         
         function viewMenu(slug) {
-            // Use the network URL for viewing menu
+            // Use the correct frontend URL based on deployment
             const hostname = window.location.hostname;
-            const frontendUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
-                ? 'http://localhost:3000' 
-                : `http://${hostname}:3000`;
+            let frontendUrl;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                frontendUrl = 'http://localhost:3000';
+            } else if (hostname.includes('railway.app') || hostname.includes('up.railway.app')) {
+                // Railway deployment - use Vercel frontend
+                frontendUrl = 'https://menu-card-2hha.vercel.app';
+            } else {
+                // Local network
+                frontendUrl = `http://${hostname}:3000`;
+            }
+            
             window.open(`${frontendUrl}/menu/${slug}`, '_blank');
         }
         
