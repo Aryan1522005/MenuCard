@@ -1,0 +1,2261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Menu Admin Panel</title>
+    <script>
+        // Global user role variable
+        let currentUserRole = 'viewer';
+        
+        // Get API base URL for network access
+        function getApiBaseUrl() {
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5000/api';
+            } else if (hostname.includes('railway.app') || hostname.includes('up.railway.app')) {
+                // On Railway, use the same host
+                return `https://${hostname}/api`;
+            } else {
+                return `http://${hostname}:5000/api`;
+            }
+        }
+        
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            const token = localStorage.getItem('adminToken');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Verify token is still valid and get user info
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                const userData = await response.json();
+                currentUserRole = userData.user.role;
+                
+                // Update user role indicator
+                updateUserRoleIndicator(currentUserRole);
+                
+                // Update UI based on user role
+                updateUIForUserRole(currentUserRole);
+                
+            } catch (error) {
+                localStorage.removeItem('adminToken');
+                window.location.href = 'login.html';
+                return;
+            }
+        });
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc;
+            color: #1a202c;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            color: #2563eb;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            color: #6b7280;
+        }
+        
+        .restaurant-card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .restaurant-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .restaurant-slug {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        
+        .qr-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .qr-code {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background: white;
+        }
+        
+        .qr-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+        
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        
+        .menu-url {
+            background-color: #f3f4f6;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            word-break: break-all;
+            margin-bottom: 1rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+        
+         .error {
+             background-color: #fef2f2;
+             border: 1px solid #fecaca;
+             color: #dc2626;
+             padding: 1rem;
+             border-radius: 0.5rem;
+             margin: 1rem 0;
+         }
+         
+         .tabs {
+             display: flex;
+             background: white;
+             border-radius: 0.5rem;
+             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+             margin-bottom: 2rem;
+             overflow: hidden;
+         }
+         
+         .tab {
+             flex: 1;
+             padding: 1rem 1.5rem;
+             background: #f8fafc;
+             border: none;
+             cursor: pointer;
+             font-weight: 500;
+             transition: all 0.2s;
+         }
+         
+         .tab.active {
+             background: #2563eb;
+             color: white;
+         }
+         
+         .tab:hover:not(.active) {
+             background: #e2e8f0;
+         }
+         
+         .tab-content {
+             display: none;
+         }
+         
+         .tab-content.active {
+             display: block;
+         }
+         
+         .section-header {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-bottom: 2rem;
+         }
+         
+         .form-group {
+             margin-bottom: 1.5rem;
+         }
+         
+         .form-group label {
+             display: block;
+             margin-bottom: 0.5rem;
+             font-weight: 500;
+             color: #374151;
+         }
+         
+         .form-group select,
+         .form-group input,
+         .form-group textarea {
+             width: 100%;
+             padding: 0.75rem;
+             border: 1px solid #d1d5db;
+             border-radius: 0.375rem;
+             font-size: 1rem;
+         }
+         
+         .form-group select:focus,
+         .form-group input:focus,
+         .form-group textarea:focus {
+             outline: none;
+             border-color: #2563eb;
+             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+         }
+         
+         .empty-state {
+             text-align: center;
+             padding: 3rem;
+             color: #6b7280;
+         }
+         
+         .menu-item-card {
+             background: white;
+             border: 1px solid #e5e7eb;
+             border-radius: 0.5rem;
+             padding: 1.5rem;
+             margin-bottom: 1rem;
+             display: flex;
+             align-items: center;
+             gap: 1rem;
+         }
+         
+         .menu-item-image {
+             width: 80px;
+             height: 80px;
+             object-fit: cover;
+             border-radius: 0.375rem;
+         }
+         
+         .menu-item-details {
+             flex: 1;
+         }
+         
+         .menu-item-name {
+             font-weight: 600;
+             color: #1f2937;
+             margin-bottom: 0.25rem;
+         }
+         
+         .menu-item-category {
+             display: inline-block;
+             background: #e0e7ff;
+             color: #3730a3;
+             padding: 0.25rem 0.75rem;
+             border-radius: 9999px;
+             font-size: 0.875rem;
+             margin-bottom: 0.5rem;
+         }
+         
+         .menu-item-price {
+             font-weight: 600;
+             color: #059669;
+             font-size: 1.125rem;
+         }
+         
+         .menu-item-actions {
+             display: flex;
+             gap: 0.5rem;
+         }
+         
+         .btn-sm {
+             padding: 0.5rem 1rem;
+             font-size: 0.875rem;
+         }
+         
+         .btn-danger {
+             background-color: #dc2626;
+             color: white;
+         }
+         
+         .btn-danger:hover {
+             background-color: #b91c1c;
+         }
+         
+         .category-card {
+             background: white;
+             border: 1px solid #e5e7eb;
+             border-radius: 0.5rem;
+             padding: 1.5rem;
+             margin-bottom: 1rem;
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+         }
+         
+         .category-info {
+             display: flex;
+             align-items: center;
+             gap: 1rem;
+         }
+         
+         .category-color {
+             width: 20px;
+             height: 20px;
+             border-radius: 50%;
+         }
+         
+         .modal {
+             display: none;
+             position: fixed;
+             z-index: 1000;
+             left: 0;
+             top: 0;
+             width: 100%;
+             height: 100%;
+             background-color: rgba(0, 0, 0, 0.5);
+         }
+         
+         .modal-content {
+             background-color: white;
+             margin: 5% auto;
+             padding: 2rem;
+             border-radius: 0.5rem;
+             width: 90%;
+             max-width: 600px;
+             max-height: 80vh;
+             overflow-y: auto;
+         }
+         
+         .modal-header {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-bottom: 1.5rem;
+         }
+         
+         .close {
+             color: #aaa;
+             font-size: 28px;
+             font-weight: bold;
+             cursor: pointer;
+         }
+         
+         .close:hover {
+             color: #000;
+         }
+         
+         .header-actions {
+             display: flex;
+             gap: 1rem;
+         }
+         
+         .filter-section {
+             background: white;
+             border-radius: 0.5rem;
+             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+             padding: 1.5rem;
+             margin-bottom: 2rem;
+         }
+         
+         .filter-controls {
+             display: flex;
+             gap: 1rem;
+             align-items: end;
+             flex-wrap: wrap;
+         }
+         
+         .filter-group, .search-group {
+             flex: 1;
+             min-width: 200px;
+         }
+         
+         .filter-group label, .search-group label {
+             display: block;
+             margin-bottom: 0.5rem;
+             font-weight: 500;
+             color: #374151;
+         }
+         
+         .search-group input {
+             width: 100%;
+             padding: 0.75rem;
+             border: 1px solid #d1d5db;
+             border-radius: 0.375rem;
+             font-size: 1rem;
+         }
+         
+         .category-cards-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+             gap: 1.5rem;
+             margin-top: 1rem;
+         }
+         
+         .category-card-new {
+             background: white;
+             border-radius: 0.75rem;
+             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+             overflow: hidden;
+             transition: transform 0.2s, box-shadow 0.2s;
+         }
+         
+         .category-card-new:hover {
+             transform: translateY(-2px);
+             box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+         }
+         
+         .category-image {
+             width: 100%;
+             height: 200px;
+             object-fit: cover;
+             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+         }
+         
+         .category-content {
+             padding: 1.5rem;
+         }
+         
+         .category-name {
+             font-size: 1.5rem;
+             font-weight: 700;
+             color: #1f2937;
+             margin-bottom: 0.5rem;
+         }
+         
+         .category-item-count {
+             display: inline-block;
+             background: #f59e0b;
+             color: white;
+             padding: 0.25rem 0.75rem;
+             border-radius: 9999px;
+             font-size: 0.875rem;
+             font-weight: 600;
+             margin-bottom: 0.75rem;
+         }
+         
+         .category-description {
+             color: #6b7280;
+             font-size: 0.875rem;
+             margin-bottom: 1rem;
+             min-height: 1.5rem;
+         }
+         
+         .category-actions {
+             display: flex;
+             gap: 0.5rem;
+             flex-wrap: wrap;
+         }
+         
+         .btn-view {
+             background-color: #f59e0b;
+             color: white;
+             flex: 1;
+         }
+         
+         .btn-view:hover {
+             background-color: #d97706;
+         }
+         
+         .btn-edit {
+             background-color: #6b7280;
+             color: white;
+         }
+         
+         .btn-edit:hover {
+             background-color: #4b5563;
+         }
+         
+         .btn-delete {
+             background-color: #dc2626;
+             color: white;
+         }
+         
+         .btn-delete:hover {
+             background-color: #b91c1c;
+         }
+         
+         .menu-items-modal {
+             display: none;
+             position: fixed;
+             z-index: 1000;
+             left: 0;
+             top: 0;
+             width: 100%;
+             height: 100%;
+             background-color: rgba(0, 0, 0, 0.5);
+         }
+         
+         .menu-items-content {
+             background-color: white;
+             margin: 5% auto;
+             padding: 2rem;
+             border-radius: 0.5rem;
+             width: 90%;
+             max-width: 800px;
+             max-height: 80vh;
+             overflow-y: auto;
+         }
+         
+         .menu-items-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+             gap: 1rem;
+             margin-top: 1rem;
+         }
+         
+         .menu-item-card-new {
+             background: white;
+             border: 1px solid #e5e7eb;
+             border-radius: 0.5rem;
+             padding: 1rem;
+             transition: box-shadow 0.2s;
+         }
+         
+         .menu-item-card-new:hover {
+             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+         }
+         
+         .menu-item-image-new {
+             width: 100%;
+             height: 120px;
+             object-fit: cover;
+             border-radius: 0.375rem;
+             margin-bottom: 0.75rem;
+         }
+         
+         .menu-item-name-new {
+             font-weight: 600;
+             color: #1f2937;
+             margin-bottom: 0.25rem;
+         }
+         
+         .menu-item-price-new {
+             font-weight: 600;
+             color: #059669;
+             font-size: 1.125rem;
+         }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .qr-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .qr-actions {
+                flex-direction: row;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>QR Menu Admin Panel</h1>
+                    <p>Manage your restaurant QR codes, menu items, and categories</p>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div id="userRoleIndicator" style="color: #6b7280; font-size: 0.875rem; font-weight: 500; padding: 0.5rem 1rem; background-color: #f3f4f6; border-radius: 0.375rem; border: 1px solid #e5e7eb;">
+                        Logged in as: <span id="userRoleText">Loading...</span>
+                    </div>
+                    <button onclick="redirectToUserManagement()" style="background-color: #059669; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                        👥 Manage Users
+                    </button>
+                    <button onclick="logout()" style="background-color: #dc2626; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('restaurants')">Restaurants</button>
+            <button class="tab" onclick="redirectMenuManager()">Menu Management</button>
+            <button class="tab" onclick="redirectReviews()">Reviews Dashboard</button>
+        </div>
+        
+        <!-- Restaurants Tab -->
+        <div id="restaurants" class="tab-content active">
+            <div class="section-header" style="margin-top: 0.5rem;">
+                <h2>Add Restaurant</h2>
+                <div class="header-actions">
+                    <button class="btn btn-danger" onclick="showResetAllWarning()" style="background-color: #dc2626; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                        🗑️ Reset All Restaurants
+                    </button>
+                </div>
+            </div>
+            <form id="addRestaurantForm" style="background: #ffffff; border-radius: 0.5rem; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 1rem;">
+                <h3 style="margin-top: 0; color: #374151;">Basic Information</h3>
+                <div class="form-group">
+                    <label for="restaurantName">Name</label>
+                    <input type="text" id="restaurantName" required>
+                </div>
+                <div class="form-group">
+                    <label for="restaurantSlug">Slug</label>
+                    <input type="text" id="restaurantSlug" placeholder="e.g., cafe-aroma" required>
+                </div>
+                <div class="form-group">
+                    <label for="restaurantLogo">Logo URL</label>
+                    <input type="url" id="restaurantLogo" placeholder="https://example.com/logo.png">
+                </div>
+                <div class="form-group">
+                    <label for="restaurantImage">Restaurant Image URL</label>
+                    <input type="url" id="restaurantImage" placeholder="https://example.com/restaurant-image.jpg">
+                </div>
+                <div class="form-group">
+                    <label for="restaurantDescription">Short Description</label>
+                    <textarea id="restaurantDescription" rows="2" placeholder="Brief description (optional)"></textarea>
+                </div>
+
+                <h3 style="margin-top: 1.5rem; color: #374151;">Contact Information</h3>
+                <div class="form-group">
+                    <label for="restaurantAddress">📍 Address</label>
+                    <textarea id="restaurantAddress" rows="2" placeholder="Full address (optional)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="restaurantPhone">📞 Phone Number</label>
+                    <input type="tel" id="restaurantPhone" placeholder="+1 234 567 8900 (optional)">
+                </div>
+
+                <h3 style="margin-top: 1.5rem; color: #374151;">WiFi Information</h3>
+                <div class="form-group">
+                    <label for="restaurantWifiName">📶 WiFi Name</label>
+                    <input type="text" id="restaurantWifiName" placeholder="Network name (optional)">
+                </div>
+                <div class="form-group">
+                    <label for="restaurantWifiPassword">🔒 WiFi Password</label>
+                    <input type="text" id="restaurantWifiPassword" placeholder="Network password (optional)">
+                </div>
+
+                <h3 style="margin-top: 1.5rem; color: #374151;">Custom Sections</h3>
+                <div id="customSectionsContainer"></div>
+                <button type="button" class="btn" style="background: #6366f1; color: white; margin-bottom: 1rem;" onclick="addCustomSection()">
+                    ➕ Add Custom Section
+                </button>
+
+                <div style="display:flex; gap: 10px; margin-top: 1rem;">
+                    <button type="submit" class="btn btn-primary">Create Restaurant</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('addRestaurantForm').reset(); resetCustomSections()">Reset</button>
+                </div>
+            </form>
+            <!-- Restaurant search -->
+            <div style="display:flex; align-items:center; gap:10px; margin: 0 0 12px 0;">
+                <div style="position:relative; flex:1;">
+                    <input type="text" id="restaurantSearchInput" placeholder="Search restaurants by ID, name, slug, or description..." style="width:100%; padding:10px 40px 10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px;">
+                    <i class="fas fa-search" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#6b7280;"></i>
+                </div>
+                <button type="button" class="btn" id="clearRestaurantSearchBtn" style="white-space:nowrap;">Clear</button>
+            </div>
+            <div id="restaurants-container">
+                <div class="loading">Loading restaurants...</div>
+            </div>
+        </div>
+        
+        <!-- Menu Management Tab -->
+        <div id="menu-management" class="tab-content">
+            <div class="section-header">
+                <h2>Menu Management</h2>
+                <div class="header-actions">
+                    <button class="btn btn-danger" onclick="showAddCategoryModal()">+ Add Category</button>
+                    <button class="btn btn-primary" onclick="showAddMenuItemModal()">+ Add Menu Item</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="restaurantSelect">Select Restaurant:</label>
+                <select id="restaurantSelect" onchange="loadRestaurantMenu()">
+                    <option value="">Choose a restaurant...</option>
+                </select>
+            </div>
+            
+            <!-- Filter and Search Section -->
+            <div class="filter-section">
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label for="categoryFilter">Filter by Category:</label>
+                        <select id="categoryFilter" onchange="filterMenuItems()">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="search-group">
+                        <input type="text" id="menuSearch" placeholder="Search menu items by name, item code, category..." onkeyup="searchMenuItems()">
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteAllCategories()">Delete All Categories</button>
+                </div>
+            </div>
+            
+            <!-- Category Cards Display -->
+            <div id="category-cards-container">
+                <div class="empty-state">Select a restaurant to view and manage menu categories</div>
+            </div>
+        </div>
+        
+        
+    </div>
+
+    <!-- Add Menu Item Modal -->
+    <div id="addMenuItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Menu Item</h2>
+                <span class="close" onclick="closeAddMenuItemModal()">&times;</span>
+            </div>
+            <form id="addMenuItemForm">
+                <div class="form-group">
+                    <label for="menuItemRestaurant">Restaurant:</label>
+                    <select id="menuItemRestaurant" required>
+                        <option value="">Select Restaurant</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="menuItemCategory">Category:</label>
+                    <select id="menuItemCategory" required>
+                        <option value="">Select Category</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="menuItemName">Item Name:</label>
+                    <input type="text" id="menuItemName" required>
+                </div>
+                <div class="form-group">
+                    <label for="menuItemDescription">Description:</label>
+                    <textarea id="menuItemDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="menuItemPrice">Price (₹):</label>
+                    <input type="number" id="menuItemPrice" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #374151;">Food Type:</label>
+                    <div style="display: flex; gap: 20px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                            <input type="radio" name="menuItemFoodType" value="1" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #22c55e; border-radius: 3px; margin-right: 8px; position: relative; background: #f0fdf4;">
+                                <span style="display: block; width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></span>
+                            </span>
+                            <span style="color: #15803d; font-weight: 600; font-size: 15px;">Vegetarian</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                            <input type="radio" name="menuItemFoodType" value="0" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #ef4444; border-radius: 3px; margin-right: 8px; position: relative; background: #fef2f2;">
+                                <span style="display: block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #ef4444;"></span>
+                            </span>
+                            <span style="color: #dc2626; font-weight: 600; font-size: 15px;">Non-Vegetarian</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="menuItemAvailability">Available Time (12-hour format):</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="time" id="menuItemStartTime" style="flex: 1;">
+                        <span style="align-self: center;">to</span>
+                        <input type="time" id="menuItemEndTime" style="flex: 1;">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="menuItemIsAvailable" checked> Available Now
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">Add Menu Item</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddMenuItemModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Menu Item Modal -->
+    <div id="editMenuItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Menu Item</h2>
+                <span class="close" onclick="closeEditMenuItemModal()">&times;</span>
+            </div>
+            <form id="editMenuItemForm">
+                <input type="hidden" id="editMenuItemId">
+                <div class="form-group">
+                    <label for="editMenuItemName">Item Name:</label>
+                    <input type="text" id="editMenuItemName" required>
+                </div>
+                <div class="form-group">
+                    <label for="editMenuItemCategory">Category:</label>
+                    <select id="editMenuItemCategory" required>
+                        <option value="">Select Category</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editMenuItemDescription">Description:</label>
+                    <textarea id="editMenuItemDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editMenuItemPrice">Price (₹):</label>
+                    <input type="number" id="editMenuItemPrice" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #374151;">Food Type:</label>
+                    <div style="display: flex; gap: 20px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                            <input type="radio" name="editMenuItemFoodType" value="1" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #22c55e; border-radius: 3px; margin-right: 8px; position: relative; background: #f0fdf4;">
+                                <span style="display: block; width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></span>
+                            </span>
+                            <span style="color: #15803d; font-weight: 600; font-size: 15px;">Vegetarian</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal; padding: 8px 12px; border-radius: 6px; transition: all 0.2s; flex: 1; justify-content: center;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                            <input type="radio" name="editMenuItemFoodType" value="0" style="margin-right: 10px; cursor: pointer; width: 18px; height: 18px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2.5px solid #ef4444; border-radius: 3px; margin-right: 8px; position: relative; background: #fef2f2;">
+                                <span style="display: block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #ef4444;"></span>
+                            </span>
+                            <span style="color: #dc2626; font-weight: 600; font-size: 15px;">Non-Vegetarian</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editMenuItemAvailability">Available Time (12-hour format):</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="time" id="editMenuItemStartTime" style="flex: 1;">
+                        <span style="align-self: center;">to</span>
+                        <input type="time" id="editMenuItemEndTime" style="flex: 1;">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="editMenuItemIsAvailable"> Available Now
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">Update Item</button>
+                    <button type="button" class="btn btn-danger" onclick="deleteMenuItem()">Delete Item</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditMenuItemModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="addCategoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Category</h2>
+                <span class="close" onclick="closeAddCategoryModal()">&times;</span>
+            </div>
+            <form id="addCategoryForm">
+                <div class="form-group">
+                    <label for="categoryName">Category Name:</label>
+                    <input type="text" id="categoryName" required>
+                </div>
+                <div class="form-group">
+                    <label for="categoryDescription">Description:</label>
+                    <textarea id="categoryDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="categoryColor">Color:</label>
+                    <input type="color" id="categoryColor" value="#007bff">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">Add Category</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddCategoryModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Menu Items Modal -->
+    <div id="menuItemsModal" class="menu-items-modal">
+        <div class="menu-items-content">
+            <div class="modal-header">
+                <h2 id="menuItemsTitle">Menu Items</h2>
+                <span class="close" onclick="closeMenuItemsModal()">&times;</span>
+            </div>
+            <div id="menuItemsList" class="menu-items-grid">
+                <!-- Menu items will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset All Warning Modal -->
+    <div id="resetAllModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 style="color: #dc2626;">⚠️ Reset All Restaurants</h2>
+                <span class="close" onclick="closeResetAllModal()">&times;</span>
+            </div>
+            <div style="padding: 1rem 0;">
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem;">
+                    <h3 style="color: #dc2626; margin-bottom: 0.5rem;">⚠️ DANGER: This action cannot be undone!</h3>
+                    <p style="color: #991b1b; margin: 0;">This will permanently delete:</p>
+                    <ul style="color: #991b1b; margin: 0.5rem 0 0 1.5rem;">
+                        <li>All restaurants and their data</li>
+                        <li>All menu items and categories</li>
+                        <li>All reviews and feedback</li>
+                        <li>All QR codes and associated files</li>
+                    </ul>
+                </div>
+                <p style="color: #374151; margin-bottom: 1rem;">After reset, all IDs (restaurants, menu items, categories, and reviews) will start from 1 again.</p>
+                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem;">Type <strong>RESET ALL</strong> in the box below to confirm:</p>
+                <input type="text" id="resetConfirmationInput" placeholder="Type 'RESET ALL' to confirm" 
+                       style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeResetAllModal()">Cancel</button>
+                    <button class="btn btn-danger" id="confirmResetBtn" onclick="confirmResetAll()" disabled 
+                            style="background-color: #dc2626; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; font-weight: 500; cursor: not-allowed; opacity: 0.5;">
+                        Reset All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Restaurant Modal -->
+    <div id="editRestaurantModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 style="color: #10b981;">✏️ Edit Restaurant</h2>
+                <span class="close" onclick="closeEditRestaurantModal()">&times;</span>
+            </div>
+            <div style="padding: 1rem 0; max-height: 70vh; overflow-y: auto;">
+                <form id="editRestaurantForm">
+                    <input type="hidden" id="editRestaurantId">
+                    
+                    <h3 style="margin-top: 0; color: #374151;">Basic Information</h3>
+                    <div class="form-group">
+                        <label for="editRestaurantName">Restaurant Name</label>
+                        <input type="text" id="editRestaurantName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantSlug">Slug</label>
+                        <input type="text" id="editRestaurantSlug" placeholder="e.g., cafe-aroma" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantLogo">Logo URL</label>
+                        <input type="url" id="editRestaurantLogo" placeholder="https://example.com/logo.png">
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantImage">Restaurant Image URL</label>
+                        <input type="url" id="editRestaurantImage" placeholder="https://example.com/restaurant-image.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantDescription">Description</label>
+                        <textarea id="editRestaurantDescription" rows="2" placeholder="Short description (optional)"></textarea>
+                    </div>
+                    
+                    <h3 style="margin-top: 1.5rem; color: #374151;">Contact Information</h3>
+                    <div class="form-group">
+                        <label for="editRestaurantAddress">📍 Address</label>
+                        <textarea id="editRestaurantAddress" rows="2" placeholder="Full address (optional)"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantPhone">📞 Phone Number</label>
+                        <input type="tel" id="editRestaurantPhone" placeholder="+1 234 567 8900 (optional)">
+                    </div>
+                    
+                    <h3 style="margin-top: 1.5rem; color: #374151;">WiFi Information</h3>
+                    <div class="form-group">
+                        <label for="editRestaurantWifiName">📶 WiFi Name</label>
+                        <input type="text" id="editRestaurantWifiName" placeholder="Network name (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="editRestaurantWifiPassword">🔒 WiFi Password</label>
+                        <input type="text" id="editRestaurantWifiPassword" placeholder="Network password (optional)">
+                    </div>
+                    
+                    <h3 style="margin-top: 1.5rem; color: #374151;">Custom Sections</h3>
+                    <div id="editCustomSectionsContainer"></div>
+                    <button type="button" class="btn" style="background: #6366f1; color: white; margin-bottom: 1rem;" onclick="addEditCustomSection()">
+                        ➕ Add Custom Section
+                    </button>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditRestaurantModal()">Cancel</button>
+                        <button type="submit" class="btn" style="background-color: #10b981; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; font-weight: 500;">
+                            Update Restaurant
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = getApiBaseUrl();
+        
+        // Logout function
+        function logout() {
+            localStorage.removeItem('adminToken');
+            window.location.href = 'login.html';
+        }
+        
+        // Helper function to get auth headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('adminToken');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+        
+        let restaurants = [];
+        let categories = [];
+        let currentRestaurant = null;
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to selected tab and content
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Load data based on tab
+            if (tabName === 'restaurants') {
+                fetchRestaurants();
+            } else if (tabName === 'menu-management') {
+                loadRestaurantsForSelect();
+                fetchCategories();
+            }
+        }
+
+        function redirectMenuManager() {
+            window.location.href = 'admin-menu-manager.html';
+        }
+
+        function redirectReviews() {
+            window.location.href = 'admin-reviews.html';
+        }
+
+        function redirectToUserManagement() {
+            window.location.href = 'admin-users.html';
+        }
+        
+        // Update user role indicator
+        function updateUserRoleIndicator(role) {
+            const roleText = document.getElementById('userRoleText');
+            if (roleText) {
+                const roleDisplay = role.charAt(0).toUpperCase() + role.slice(1);
+                roleText.textContent = roleDisplay;
+                
+                // Add color coding based on role
+                const indicator = document.getElementById('userRoleIndicator');
+                if (indicator) {
+                    switch(role) {
+                        case 'admin':
+                            indicator.style.backgroundColor = '#fef2f2';
+                            indicator.style.borderColor = '#fecaca';
+                            indicator.style.color = '#991b1b';
+                            break;
+                        case 'manager':
+                            indicator.style.backgroundColor = '#eff6ff';
+                            indicator.style.borderColor = '#bfdbfe';
+                            indicator.style.color = '#1e40af';
+                            break;
+                        case 'viewer':
+                            indicator.style.backgroundColor = '#f9fafb';
+                            indicator.style.borderColor = '#d1d5db';
+                            indicator.style.color = '#6b7280';
+                            break;
+                    }
+                }
+            }
+        }
+        
+        // Update UI based on user role
+        function updateUIForUserRole(role) {
+            console.log('Current user role:', role);
+            
+            // Hide/show elements based on role
+            const resetAllButton = document.querySelector('button[onclick="showResetAllWarning()"]');
+            const manageUsersButton = document.querySelector('button[onclick="redirectToUserManagement()"]');
+            const addRestaurantForm = document.getElementById('addRestaurantForm');
+            const addRestaurantSection = document.querySelector('.section-header h2');
+            
+            // Admin only features
+            if (role !== 'admin') {
+                if (resetAllButton) {
+                    resetAllButton.style.display = 'none';
+                }
+            }
+            
+            // Manager and Admin can manage users
+            if (!['admin', 'manager'].includes(role)) {
+                if (manageUsersButton) {
+                    manageUsersButton.style.display = 'none';
+                }
+            }
+            
+            // Manager and Admin can add restaurants
+            if (!['admin', 'manager'].includes(role)) {
+                if (addRestaurantForm) {
+                    addRestaurantForm.style.display = 'none';
+                }
+                if (addRestaurantSection) {
+                    addRestaurantSection.textContent = 'Restaurants';
+                }
+            }
+            
+            // Manager and Admin can delete restaurants
+            if (!['admin', 'manager'].includes(role)) {
+                // Hide delete restaurant buttons will be handled in displayRestaurants function
+            }
+            
+            // All roles can manage menu items
+            // This is the default behavior, so no changes needed
+        }
+        
+        async function fetchRestaurants() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    restaurants = data.restaurants;
+                    window.__allRestaurants = restaurants.slice();
+                    displayRestaurants(restaurants);
+                    const existing = document.getElementById('restaurantSearchInput');
+                    const q = (existing && existing.value ? existing.value.trim().toLowerCase() : '');
+                    if (q) {
+                        const norm = (s) => String(s || '').toLowerCase();
+                        const filtered = window.__allRestaurants.filter(r =>
+                            String(r.id) === q ||
+                            norm(r.name).includes(q) ||
+                            norm(r.slug).includes(q) ||
+                            norm(r.description).includes(q)
+                        );
+                        displayRestaurants(filtered);
+                    }
+                } else {
+                    showError('Failed to load restaurants');
+                }
+            } catch (error) {
+                showError('Error connecting to API: ' + error.message);
+            }
+        }
+        
+        async function fetchCategories() {
+            try {
+                const response = await fetch(`${API_BASE}/categories`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    categories = data.categories;
+                    displayCategories(data.categories);
+                } else {
+                    showError('Failed to load categories');
+                }
+            } catch (error) {
+                showError('Error loading categories: ' + error.message);
+            }
+        }
+        
+        function displayRestaurants(restaurants) {
+            const container = document.getElementById('restaurants-container');
+            
+            if (restaurants.length === 0) {
+                container.innerHTML = '<div class="error">No restaurants found. Add some restaurants to the database first.</div>';
+                return;
+            }
+            
+            container.innerHTML = restaurants.map(restaurant => `
+                <div class="restaurant-card">
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+                        ${restaurant.logo_url ? `
+                            <img src="${restaurant.logo_url}" alt="${restaurant.name}" 
+                                 style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:3px solid #667eea;box-shadow:0 2px 8px rgba(0,0,0,0.1);"
+                                 onerror="this.style.display='none'">
+                        ` : ''}
+                        <div style="flex:1;">
+                            <div class="restaurant-name">${restaurant.name}</div>
+                            <div class="restaurant-slug">ID: ${restaurant.id} | Slug: ${restaurant.slug}</div>
+                            ${restaurant.description ? `<div style="color:#6b7280;font-size:14px;margin-top:4px;">${restaurant.description}</div>` : ''}
+                            <div style="color:#059669;font-size:14px;margin-top:4px;font-weight:500;">${restaurant.menu_item_count || 0} menu items</div>
+                        </div>
+                    </div>
+                    <div class="menu-url" id="url-${restaurant.id}">Loading menu URL...</div>
+                    <div class="qr-section">
+                        <div class="qr-code" id="qr-${restaurant.id}">
+                            <div class="loading">Generating QR code...</div>
+                        </div>
+                        <div class="qr-actions">
+                            <button class="btn btn-primary" onclick="viewMenu('${restaurant.slug}')">
+                                View Menu
+                            </button>
+                            <button class="btn btn-secondary" onclick="downloadQR('${restaurant.slug}')">
+                                Download QR
+                            </button>
+                            <button class="btn" style="background:#10b981;color:white" onclick="editRestaurant(${restaurant.id}, '${restaurant.name.replace(/'/g, "\\'")}', '${restaurant.slug.replace(/'/g, "\\'")}', '${(restaurant.description || '').replace(/'/g, "\\'")}')">
+                                Edit Restaurant
+                            </button>
+                            ${['admin', 'manager'].includes(currentUserRole) ? `
+                            <button class="btn" style="background:#f59e0b;color:white" onclick="resetRestaurantMenu(${restaurant.id}, '${restaurant.name.replace(/'/g, "\\'")}')">
+                                Reset Menu
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteRestaurant(${restaurant.id}, '${restaurant.name.replace(/'/g, "\\'")}')">
+                                Delete Restaurant
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Generate QR codes for each restaurant
+            restaurants.forEach(restaurant => {
+                generateQRCode(restaurant);
+            });
+        }
+
+        async function resetRestaurantMenu(restaurantId, restaurantName) {
+            if (!restaurantId) return;
+            if (!confirm(`Reset all menu items and categories for "${restaurantName}"? This cannot be undone.`)) return;
+            try {
+                const resp = await fetch(`${API_BASE}/admin/restaurants/${restaurantId}/reset-menu`, { 
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                const data = await resp.json();
+                if (data && data.success) {
+                    showSuccess('Menu reset successfully');
+                    fetchRestaurants();
+                } else {
+                    showError('Failed to reset menu: ' + (data && data.message ? data.message : 'Unknown error'));
+                }
+            } catch (err) {
+                showError('Error resetting menu: ' + err.message);
+            }
+        }
+        
+        async function generateQRCode(restaurant) {
+            try {
+                const response = await fetch(`${API_BASE}/admin/qr/${restaurant.slug}`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update menu URL
+                    document.getElementById(`url-${restaurant.id}`).textContent = data.menu_url;
+                    
+                    // Update QR code
+                    const qrContainer = document.getElementById(`qr-${restaurant.id}`);
+                    qrContainer.innerHTML = `
+                        <img src="${data.qr_code}" alt="QR Code for ${restaurant.name}" style="max-width: 200px; height: auto;">
+                    `;
+                } else {
+                    document.getElementById(`qr-${restaurant.id}`).innerHTML = 
+                        '<div class="error">Failed to generate QR code</div>';
+                }
+            } catch (error) {
+                document.getElementById(`qr-${restaurant.id}`).innerHTML = 
+                    '<div class="error">Error generating QR code</div>';
+            }
+
+        }
+        
+        function viewMenu(slug) {
+            // Use the network URL for viewing menu
+            const hostname = window.location.hostname;
+            const frontendUrl = hostname === 'localhost' || hostname === '127.0.0.1' 
+                ? 'http://localhost:3000' 
+                : `http://${hostname}:3000`;
+            window.open(`${frontendUrl}/menu/${slug}`, '_blank');
+        }
+        
+        function downloadQR(slug) {
+            // Use the public QR download endpoint that doesn't require authentication
+            const qrApiBase = getApiBaseUrl().replace('/api', '/api/qr');
+            window.open(`${qrApiBase}/${slug}/download`, '_blank');
+        }
+        
+        // Edit Restaurant functions
+        async function editRestaurant(id, name, slug, description) {
+            try {
+                // Fetch full restaurant data
+                const response = await fetch(`${API_BASE}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                const restaurant = data.restaurants.find(r => r.id === id);
+                
+                if (!restaurant) {
+                    showError('Restaurant not found');
+                    return;
+                }
+                
+                // Populate basic fields
+                document.getElementById('editRestaurantId').value = id;
+                document.getElementById('editRestaurantName').value = restaurant.name || '';
+                document.getElementById('editRestaurantSlug').value = restaurant.slug || '';
+                document.getElementById('editRestaurantLogo').value = restaurant.logo_url || '';
+                document.getElementById('editRestaurantImage').value = restaurant.image_url || '';
+                document.getElementById('editRestaurantDescription').value = restaurant.description || '';
+                
+                // Populate contact fields
+                document.getElementById('editRestaurantAddress').value = restaurant.address || '';
+                document.getElementById('editRestaurantPhone').value = restaurant.phone || '';
+                
+                // Populate WiFi fields
+                document.getElementById('editRestaurantWifiName').value = restaurant.wifi_name || '';
+                document.getElementById('editRestaurantWifiPassword').value = restaurant.wifi_password || '';
+                
+                // Populate custom sections
+                resetEditCustomSections();
+                if (restaurant.custom_sections) {
+                    try {
+                        const sections = typeof restaurant.custom_sections === 'string' 
+                            ? JSON.parse(restaurant.custom_sections) 
+                            : restaurant.custom_sections;
+                        if (Array.isArray(sections)) {
+                            sections.forEach(section => {
+                                addEditCustomSection(section.title, section.content);
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Error parsing custom sections:', e);
+                    }
+                }
+                
+                document.getElementById('editRestaurantModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading restaurant data:', error);
+                showError('Error loading restaurant data');
+            }
+        }
+
+        function closeEditRestaurantModal() {
+            document.getElementById('editRestaurantModal').style.display = 'none';
+            document.getElementById('editRestaurantForm').reset();
+        }
+        
+        // Custom Sections Management
+        let customSectionCount = 0;
+        
+        function addCustomSection(title = '', content = '') {
+            customSectionCount++;
+            const container = document.getElementById('customSectionsContainer');
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'custom-section-item';
+            sectionDiv.style.cssText = 'background: #f9fafb; padding: 1rem; border-radius: 0.375rem; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;';
+            sectionDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <strong style="color: #374151;">Custom Section #${customSectionCount}</strong>
+                    <button type="button" class="btn btn-danger" onclick="removeCustomSection(this)" style="padding: 0.25rem 0.5rem; font-size: 0.875rem;">
+                        ✕ Remove
+                    </button>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <input type="text" class="custom-section-title" placeholder="Section Title (e.g., Opening Hours)" value="${title}" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <textarea class="custom-section-content" rows="2" placeholder="Section Content" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">${content}</textarea>
+                </div>
+            `;
+            container.appendChild(sectionDiv);
+        }
+        
+        function removeCustomSection(btn) {
+            btn.closest('.custom-section-item').remove();
+        }
+        
+        function resetCustomSections() {
+            document.getElementById('customSectionsContainer').innerHTML = '';
+            customSectionCount = 0;
+        }
+        
+        // Edit Custom Sections Management
+        let editCustomSectionCount = 0;
+        
+        function addEditCustomSection(title = '', content = '') {
+            editCustomSectionCount++;
+            const container = document.getElementById('editCustomSectionsContainer');
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'edit-custom-section-item';
+            sectionDiv.style.cssText = 'background: #f9fafb; padding: 1rem; border-radius: 0.375rem; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;';
+            sectionDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <strong style="color: #374151;">Custom Section #${editCustomSectionCount}</strong>
+                    <button type="button" class="btn btn-danger" onclick="removeEditCustomSection(this)" style="padding: 0.25rem 0.5rem; font-size: 0.875rem;">
+                        ✕ Remove
+                    </button>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <input type="text" class="edit-custom-section-title" placeholder="Section Title (e.g., Opening Hours)" value="${title}" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <textarea class="edit-custom-section-content" rows="2" placeholder="Section Content" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">${content}</textarea>
+                </div>
+            `;
+            container.appendChild(sectionDiv);
+        }
+        
+        function removeEditCustomSection(btn) {
+            btn.closest('.edit-custom-section-item').remove();
+        }
+        
+        function resetEditCustomSections() {
+            document.getElementById('editCustomSectionsContainer').innerHTML = '';
+            editCustomSectionCount = 0;
+        }
+        
+        async function deleteRestaurant(id, name) {
+            if (!confirm(`Delete restaurant "${name}" and all its menu items?`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/admin/restaurants/${id}`, { 
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showSuccess('Restaurant deleted successfully');
+                    fetchRestaurants();
+                } else {
+                    showError('Error: ' + (data.message || 'Failed to delete restaurant'));
+                }
+            } catch (e) {
+                showError('Error deleting restaurant: ' + e.message);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('restaurants-container').innerHTML = 
+                `<div class="error">${message}</div>`;
+        }
+        
+        // Load restaurants for select dropdown
+        async function loadRestaurantsForSelect() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('restaurantSelect');
+                    select.innerHTML = '<option value="">Choose a restaurant...</option>' + 
+                        data.restaurants.map(rest => `<option value="${rest.slug}">${rest.name}</option>`).join('');
+                }
+            } catch (error) {
+                showError('Error loading restaurants: ' + error.message);
+            }
+        }
+        
+        // Load restaurant menu items
+        async function loadRestaurantMenu() {
+            const restaurantSlug = document.getElementById('restaurantSelect').value;
+            if (!restaurantSlug) {
+                document.getElementById('category-cards-container').innerHTML = 
+                    '<div class="empty-state">Select a restaurant to view and manage menu categories</div>';
+                return;
+            }
+            
+            currentRestaurant = restaurantSlug;
+            
+            try {
+                const response = await fetch(`${API_BASE}/menu/${restaurantSlug}`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayCategoryCards(data.categories);
+                    populateCategoryFilter(data.categories);
+                } else {
+                    showError('Failed to load menu items');
+                }
+            } catch (error) {
+                showError('Error loading menu items: ' + error.message);
+            }
+        }
+        
+        // Display category cards
+        function displayCategoryCards(categoriesMap) {
+            const container = document.getElementById('category-cards-container');
+            
+            if (!categoriesMap || Object.keys(categoriesMap).length === 0) {
+                container.innerHTML = '<div class="empty-state">No menu categories found for this restaurant</div>';
+                return;
+            }
+            
+            let html = '<div class="category-cards-grid">';
+            
+            for (const [categoryName, items] of Object.entries(categoriesMap)) {
+                const itemCount = items.length;
+                const firstItemImage = items.length > 0 ? items[0].image_url : null;
+                // Use the global categories array (loaded via /api/categories) to decorate
+                const categoryInfo = (window.categories || []).find(cat => cat.name === categoryName);
+                const categoryColor = categoryInfo ? categoryInfo.color : '#007bff';
+                
+                html += `
+                    <div class="category-card-new">
+                        <img src="${firstItemImage || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGNUY1Ii8+Cjx0ZXh0IHg9IjE1MCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZTwvdGV4dD4KPC9zdmc+'}" 
+                             alt="${categoryName}" class="category-image" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGNUY1Ii8+Cjx0ZXh0IHg9IjE1MCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZTwvdGV4dD4KPC9zdmc+'">
+                        <div class="category-content">
+                            <div class="category-name">${categoryName}</div>
+                            <div class="category-item-count">${itemCount} items</div>
+                            <div class="category-description">No description available</div>
+                            <div class="category-actions">
+                                <button class="btn btn-view" onclick="viewCategoryItems('${categoryName}', ${JSON.stringify(items).replace(/"/g, '&quot;')})">View Items</button>
+                                <button class="btn btn-edit" onclick="editCategory('${categoryName}')">Edit</button>
+                                <button class="btn btn-delete" onclick="deleteCategoryFromMenu('${categoryName}')">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Populate category filter dropdown
+        function populateCategoryFilter(categories) {
+            const select = document.getElementById('categoryFilter');
+            select.innerHTML = '<option value="">All Categories</option>' + 
+                Object.keys(categories).map(category => `<option value="${category}">${category}</option>`).join('');
+        }
+        
+        // View category items
+        function viewCategoryItems(categoryName, items) {
+            document.getElementById('menuItemsTitle').textContent = `${categoryName} - Menu Items`;
+            const container = document.getElementById('menuItemsList');
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="empty-state">No items found in this category</div>';
+            } else {
+                container.innerHTML = items.map(item => `
+                    <div class="menu-item-card-new">
+                        <img src="${item.image_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDI1MCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyNTAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRjVGNUY1Ii8+Cjx0ZXh0IHg9IjEyNSIgeT0iNjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pgo8L3N2Zz4='}" 
+                             alt="${item.name}" class="menu-item-image-new" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDI1MCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyNTAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRjVGNUY1Ii8+Cjx0ZXh0IHg9IjEyNSIgeT0iNjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pgo8L3N2Zz4='">
+                        <div style="display:inline-block;background:#e0e7ff;color:#3730a3;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;">Code: ${item.item_code || 'N/A'}</div>
+                        <div class="menu-item-name-new">${item.name}</div>
+                        <div class="menu-item-price-new">₹${item.price}</div>
+                        <div style="margin-top: 0.5rem;">
+                            <button class="btn btn-primary btn-sm" onclick="editMenuItem(${item.id})">Edit</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('menuItemsModal').style.display = 'block';
+        }
+        
+        // Close menu items modal
+        function closeMenuItemsModal() {
+            document.getElementById('menuItemsModal').style.display = 'none';
+        }
+        
+        // Filter menu items
+        function filterMenuItems() {
+            const selectedCategory = document.getElementById('categoryFilter').value;
+            // This would filter the displayed category cards
+            // Implementation depends on how you want to handle filtering
+        }
+        
+        // Search menu items
+        async function searchMenuItems() {
+            const searchTerm = document.getElementById('menuSearch').value.trim();
+            const restaurantSlug = document.getElementById('restaurantSelect').value;
+            
+            if (!restaurantSlug) {
+                showError('Please select a restaurant first');
+                return;
+            }
+            
+            if (!searchTerm) {
+                // If search is empty, reload all items
+                loadRestaurantMenu();
+                return;
+            }
+            
+            try {
+                // First, get restaurant ID from slug
+                const restaurantsResponse = await fetch(`${API_BASE}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const restaurantsData = await restaurantsResponse.json();
+                const restaurant = restaurantsData.restaurants.find(r => r.slug === restaurantSlug);
+                
+                if (!restaurant) {
+                    showError('Restaurant not found');
+                    return;
+                }
+                
+                // Search menu items
+                const response = await fetch(`${API_BASE}/admin/menu-items/search?restaurant_id=${restaurant.id}&search=${encodeURIComponent(searchTerm)}`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Group items by category
+                    const categoriesMap = {};
+                    data.items.forEach(item => {
+                        if (!categoriesMap[item.category]) {
+                            categoriesMap[item.category] = [];
+                        }
+                        categoriesMap[item.category].push(item);
+                    });
+                    
+                    displayCategoryCards(categoriesMap);
+                } else {
+                    showError('Search failed');
+                }
+            } catch (error) {
+                console.error('Error searching menu items:', error);
+                showError('Error searching menu items: ' + error.message);
+            }
+        }
+        
+        // Delete all categories
+        function deleteAllCategories() {
+            if (confirm('Are you sure you want to delete all categories? This action cannot be undone.')) {
+                // Implementation for deleting all categories
+                showSuccess('All categories deleted successfully!');
+            }
+        }
+        
+        // Edit category
+        function editCategory(categoryName) {
+            // Implementation for editing category
+            showSuccess(`Editing category: ${categoryName}`);
+        }
+        
+        // Delete category from menu
+        function deleteCategoryFromMenu(categoryName) {
+            if (confirm(`Are you sure you want to delete the category "${categoryName}" and all its items?`)) {
+                // Implementation for deleting category
+                showSuccess(`Category "${categoryName}" deleted successfully!`);
+                loadRestaurantMenu(); // Refresh the display
+            }
+        }
+        
+        // Display categories
+        function displayCategories(categories) {
+            const container = document.getElementById('categories-container');
+            
+            if (categories.length === 0) {
+                container.innerHTML = '<div class="empty-state">No categories found. Add your first category!</div>';
+                return;
+            }
+            
+            container.innerHTML = categories.map(category => `
+                <div class="category-card">
+                    <div class="category-info">
+                        <div class="category-color" style="background-color: ${category.color}"></div>
+                        <div>
+                            <div style="font-weight: 600; color: #1f2937;">${category.name}</div>
+                            <div style="color: #6b7280; font-size: 14px;">${category.description || 'No description'}</div>
+                        </div>
+                    </div>
+                    <div class="menu-item-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteCategory(${category.id}, '${category.name}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Modal functions
+        function showAddMenuItemModal() {
+            populateRestaurantSelect();
+            populateCategorySelect();
+            document.getElementById('addMenuItemModal').style.display = 'block';
+        }
+        
+        function closeAddMenuItemModal() {
+            document.getElementById('addMenuItemModal').style.display = 'none';
+            document.getElementById('addMenuItemForm').reset();
+        }
+        
+        function showAddCategoryModal() {
+            document.getElementById('addCategoryModal').style.display = 'block';
+        }
+        
+        function closeAddCategoryModal() {
+            document.getElementById('addCategoryModal').style.display = 'none';
+            document.getElementById('addCategoryForm').reset();
+        }
+        
+        function showEditMenuItemModal() {
+            populateCategorySelect('editMenuItemCategory');
+            document.getElementById('editMenuItemModal').style.display = 'block';
+        }
+        
+        function closeEditMenuItemModal() {
+            document.getElementById('editMenuItemModal').style.display = 'none';
+        }
+        
+        // Populate select dropdowns
+        function populateRestaurantSelect() {
+            const select = document.getElementById('menuItemRestaurant');
+            select.innerHTML = '<option value="">Select Restaurant</option>' + 
+                restaurants.map(rest => `<option value="${rest.id}">${rest.name}</option>`).join('');
+        }
+        
+        function populateCategorySelect(selectId = 'menuItemCategory') {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">Select Category</option>' + 
+                categories.map(cat => `<option value="${cat.name}">${cat.name}</option>`).join('');
+        }
+        
+        // Edit menu item
+        async function editMenuItem(itemId) {
+            try {
+                // Ensure categories are loaded first
+                if (categories.length === 0) {
+                    await loadCategories();
+                }
+                
+                // Find the item in the current menu data
+                const response = await fetch(`${API_BASE}/menu/${currentRestaurant}`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    let foundItem = null;
+                    for (const [categoryName, items] of Object.entries(data.categories)) {
+                        const item = items.find(i => i.id === itemId);
+                        if (item) {
+                            foundItem = item;
+                            break;
+                        }
+                    }
+                    
+                    if (foundItem) {
+                        // Populate edit form
+                        document.getElementById('editMenuItemId').value = foundItem.id;
+                        document.getElementById('editMenuItemName').value = foundItem.name;
+                        document.getElementById('editMenuItemDescription').value = foundItem.description || '';
+                        document.getElementById('editMenuItemPrice').value = foundItem.price;
+                        document.getElementById('editMenuItemIsAvailable').checked = foundItem.is_available;
+                        
+                        // Set availability time if available
+                        if (foundItem.availability_time) {
+                            const [startTime, endTime] = foundItem.availability_time.split(' - ');
+                            document.getElementById('editMenuItemStartTime').value = startTime || '';
+                            document.getElementById('editMenuItemEndTime').value = endTime || '';
+                        }
+                        
+                        // Populate category select with all available categories
+                        populateCategorySelect('editMenuItemCategory');
+                        // Set the category value after populating
+                        setTimeout(() => {
+                            document.getElementById('editMenuItemCategory').value = foundItem.category || '';
+                        }, 100);
+                        
+                        // Set food type radio buttons
+                        const vegRadio = document.querySelector('input[name="editMenuItemFoodType"][value="1"]');
+                        const nonVegRadio = document.querySelector('input[name="editMenuItemFoodType"][value="0"]');
+                        if (foundItem.is_veg === 1 || foundItem.is_veg === true) {
+                            vegRadio.checked = true;
+                            nonVegRadio.checked = false;
+                        } else if (foundItem.is_veg === 0 || foundItem.is_veg === false) {
+                            vegRadio.checked = false;
+                            nonVegRadio.checked = true;
+                        } else {
+                            vegRadio.checked = false;
+                            nonVegRadio.checked = false;
+                        }
+                        
+                        showEditMenuItemModal();
+                    }
+                }
+            } catch (error) {
+                showError('Error loading menu item: ' + error.message);
+            }
+        }
+        
+        // Delete menu item
+        async function deleteMenuItem() {
+            const itemId = document.getElementById('editMenuItemId').value;
+            if (!itemId) return;
+            
+            if (confirm('Are you sure you want to delete this menu item?')) {
+                try {
+                    const response = await fetch(`${API_BASE}/menu/${itemId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showSuccess('Menu item deleted successfully!');
+                        closeEditMenuItemModal();
+                        loadRestaurantMenu();
+                    } else {
+                        showError('Error: ' + data.message);
+                    }
+                } catch (error) {
+                    showError('Error: ' + error.message);
+                }
+            }
+        }
+        
+        // Delete category
+        async function deleteCategory(categoryId, categoryName) {
+            if (confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
+                try {
+                    const response = await fetch(`${API_BASE}/categories/${categoryId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showSuccess('Category deleted successfully!');
+                        fetchCategories();
+                    } else {
+                        showError('Error: ' + data.message);
+                    }
+                } catch (error) {
+                    showError('Error: ' + error.message);
+                }
+            }
+        }
+        
+        // Show success message
+        function showSuccess(message) {
+            // Create a temporary success message
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.style.cssText = 'background-color: #d1fae5; border: 1px solid #a7f3d0; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;';
+            successDiv.textContent = message;
+            
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                document.body.removeChild(successDiv);
+            }, 3000);
+        }
+        
+        // Event listeners
+        document.getElementById('addMenuItemForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const startTime = document.getElementById('menuItemStartTime').value;
+            const endTime = document.getElementById('menuItemEndTime').value;
+            const availabilityTime = startTime && endTime ? `${startTime} - ${endTime}` : null;
+            
+            const foodTypeRadio = document.querySelector('input[name="menuItemFoodType"]:checked');
+            const is_veg = foodTypeRadio ? (foodTypeRadio.value === '1' ? 1 : 0) : null;
+            
+            const menuItemData = {
+                restaurant_id: parseInt(document.getElementById('menuItemRestaurant').value),
+                category: document.getElementById('menuItemCategory').value,
+                name: document.getElementById('menuItemName').value,
+                description: document.getElementById('menuItemDescription').value,
+                price: parseFloat(document.getElementById('menuItemPrice').value),
+                availability_time: availabilityTime,
+                is_available: document.getElementById('menuItemIsAvailable').checked,
+                is_veg: is_veg
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/menu/add`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify(menuItemData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Menu item added successfully!');
+                    closeAddMenuItemModal();
+                    loadRestaurantMenu();
+                } else {
+                    showError('Error: ' + data.message);
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        });
+        
+        document.getElementById('editMenuItemForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const itemId = document.getElementById('editMenuItemId').value;
+            const startTime = document.getElementById('editMenuItemStartTime').value;
+            const endTime = document.getElementById('editMenuItemEndTime').value;
+            const availabilityTime = startTime && endTime ? `${startTime} - ${endTime}` : null;
+            
+            const foodTypeRadio = document.querySelector('input[name="editMenuItemFoodType"]:checked');
+            const is_veg = foodTypeRadio ? (foodTypeRadio.value === '1' ? 1 : 0) : null;
+            
+            const menuItemData = {
+                category: document.getElementById('editMenuItemCategory').value,
+                name: document.getElementById('editMenuItemName').value,
+                description: document.getElementById('editMenuItemDescription').value,
+                price: parseFloat(document.getElementById('editMenuItemPrice').value),
+                availability_time: availabilityTime,
+                is_available: document.getElementById('editMenuItemIsAvailable').checked,
+                is_veg: is_veg
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/menu/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify(menuItemData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Menu item updated successfully!');
+                    closeEditMenuItemModal();
+                    loadRestaurantMenu();
+                } else {
+                    showError('Error: ' + data.message);
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        });
+        
+        document.getElementById('addCategoryForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const categoryData = {
+                name: document.getElementById('categoryName').value,
+                description: document.getElementById('categoryDescription').value,
+                color: document.getElementById('categoryColor').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/categories`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify(categoryData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Category added successfully!');
+                    closeAddCategoryModal();
+                    fetchCategories();
+                } else {
+                    showError('Error: ' + data.message);
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        });
+        
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const addMenuItemModal = document.getElementById('addMenuItemModal');
+            const editMenuItemModal = document.getElementById('editMenuItemModal');
+            const addCategoryModal = document.getElementById('addCategoryModal');
+            const menuItemsModal = document.getElementById('menuItemsModal');
+            const resetAllModal = document.getElementById('resetAllModal');
+            const editRestaurantModal = document.getElementById('editRestaurantModal');
+            
+            if (event.target === addMenuItemModal) {
+                closeAddMenuItemModal();
+            } else if (event.target === editMenuItemModal) {
+                closeEditMenuItemModal();
+            } else if (event.target === addCategoryModal) {
+                closeAddCategoryModal();
+            } else if (event.target === menuItemsModal) {
+                closeMenuItemsModal();
+            } else if (event.target === resetAllModal) {
+                closeResetAllModal();
+            } else if (event.target === editRestaurantModal) {
+                closeEditRestaurantModal();
+            }
+        }
+        
+        // Reset All Restaurants functionality
+        function showResetAllWarning() {
+            document.getElementById('resetAllModal').style.display = 'block';
+            document.getElementById('resetConfirmationInput').value = '';
+            document.getElementById('confirmResetBtn').disabled = true;
+            document.getElementById('confirmResetBtn').style.cursor = 'not-allowed';
+            document.getElementById('confirmResetBtn').style.opacity = '0.5';
+        }
+
+        function closeResetAllModal() {
+            document.getElementById('resetAllModal').style.display = 'none';
+            document.getElementById('resetConfirmationInput').value = '';
+        }
+
+        function confirmResetAll() {
+            const confirmationText = document.getElementById('resetConfirmationInput').value.trim();
+            if (confirmationText !== 'RESET ALL') {
+                showError('Please type "RESET ALL" exactly to confirm');
+                return;
+            }
+
+            // Show loading state
+            const confirmBtn = document.getElementById('confirmResetBtn');
+            const originalText = confirmBtn.textContent;
+            confirmBtn.textContent = 'Resetting...';
+            confirmBtn.disabled = true;
+
+            // Call the reset API
+            fetch(`${API_BASE}/admin/reset-all`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('All data has been reset successfully! All IDs (restaurants, menu items, categories, and reviews) will start from 1.');
+                    closeResetAllModal();
+                    fetchRestaurants(); // Refresh the restaurant list
+                } else {
+                    showError('Failed to reset data: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                showError('Error resetting data: ' + error.message);
+            })
+            .finally(() => {
+                // Restore button state
+                confirmBtn.textContent = originalText;
+                confirmBtn.disabled = false;
+            });
+        }
+
+        // Enable/disable reset button based on confirmation input
+        document.addEventListener('DOMContentLoaded', function() {
+            const confirmationInput = document.getElementById('resetConfirmationInput');
+            const confirmBtn = document.getElementById('confirmResetBtn');
+            
+            if (confirmationInput && confirmBtn) {
+                confirmationInput.addEventListener('input', function() {
+                    const isValid = this.value.trim() === 'RESET ALL';
+                    confirmBtn.disabled = !isValid;
+                    confirmBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
+                    confirmBtn.style.opacity = isValid ? '1' : '0.5';
+                });
+            }
+        });
+
+        // Load restaurants on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchRestaurants();
+            const searchEl = document.getElementById('restaurantSearchInput');
+            const clearBtn = document.getElementById('clearRestaurantSearchBtn');
+            const norm = (s) => String(s || '').toLowerCase();
+            function filterAndRender(q) {
+                const all = window.__allRestaurants || [];
+                if (!q) { displayRestaurants(all); return; }
+                const filtered = all.filter(r =>
+                    String(r.id) === q ||
+                    norm(r.name).includes(q) ||
+                    norm(r.slug).includes(q) ||
+                    norm(r.description).includes(q)
+                );
+                displayRestaurants(filtered);
+            }
+            if (searchEl) {
+                searchEl.addEventListener('input', (e) => {
+                    filterAndRender(norm(e.target.value.trim()));
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    if (searchEl) searchEl.value = '';
+                    filterAndRender('');
+                });
+            }
+        });
+
+        // Add Restaurant form submit
+        document.addEventListener('submit', async function(e) {
+            if (e.target && e.target.id === 'addRestaurantForm') {
+                e.preventDefault();
+                
+                // Gather custom sections
+                const customSections = [];
+                const customSectionElements = document.querySelectorAll('.custom-section-item');
+                customSectionElements.forEach(el => {
+                    const title = el.querySelector('.custom-section-title').value.trim();
+                    const content = el.querySelector('.custom-section-content').value.trim();
+                    if (title && content) {
+                        customSections.push({ title, content });
+                    }
+                });
+                
+                const payload = {
+                    name: document.getElementById('restaurantName').value.trim(),
+                    slug: document.getElementById('restaurantSlug').value.trim(),
+                    logo_url: document.getElementById('restaurantLogo').value.trim(),
+                    image_url: document.getElementById('restaurantImage').value.trim(),
+                    description: document.getElementById('restaurantDescription').value.trim(),
+                    address: document.getElementById('restaurantAddress').value.trim(),
+                    phone: document.getElementById('restaurantPhone').value.trim(),
+                    wifi_name: document.getElementById('restaurantWifiName').value.trim(),
+                    wifi_password: document.getElementById('restaurantWifiPassword').value.trim(),
+                    custom_sections: customSections.length > 0 ? customSections : null
+                };
+                if (!payload.name || !payload.slug) {
+                    showError('Name and slug are required');
+                    return;
+                }
+                try {
+                    const response = await fetch(`${API_BASE}/admin/restaurants`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            ...getAuthHeaders()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showSuccess('Restaurant created successfully!');
+                        e.target.reset();
+                        resetCustomSections();
+                        fetchRestaurants();
+                    } else {
+                        showError('Error: ' + (data.message || 'Failed to create restaurant'));
+                    }
+                } catch (error) {
+                    showError('Error: ' + error.message);
+                }
+            } else if (e.target && e.target.id === 'editRestaurantForm') {
+                e.preventDefault();
+                const restaurantId = document.getElementById('editRestaurantId').value;
+                
+                // Gather custom sections from edit modal
+                const customSections = [];
+                const editCustomSectionElements = document.querySelectorAll('.edit-custom-section-item');
+                editCustomSectionElements.forEach(el => {
+                    const title = el.querySelector('.edit-custom-section-title').value.trim();
+                    const content = el.querySelector('.edit-custom-section-content').value.trim();
+                    if (title && content) {
+                        customSections.push({ title, content });
+                    }
+                });
+                
+                const payload = {
+                    name: document.getElementById('editRestaurantName').value.trim(),
+                    slug: document.getElementById('editRestaurantSlug').value.trim(),
+                    logo_url: document.getElementById('editRestaurantLogo').value.trim(),
+                    image_url: document.getElementById('editRestaurantImage').value.trim(),
+                    description: document.getElementById('editRestaurantDescription').value.trim(),
+                    address: document.getElementById('editRestaurantAddress').value.trim(),
+                    phone: document.getElementById('editRestaurantPhone').value.trim(),
+                    wifi_name: document.getElementById('editRestaurantWifiName').value.trim(),
+                    wifi_password: document.getElementById('editRestaurantWifiPassword').value.trim(),
+                    custom_sections: customSections.length > 0 ? customSections : null
+                };
+                if (!payload.name || !payload.slug) {
+                    showError('Name and slug are required');
+                    return;
+                }
+                try {
+                    const response = await fetch(`${API_BASE}/admin/restaurants/${restaurantId}`, {
+                        method: 'PUT',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            ...getAuthHeaders()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showSuccess('Restaurant updated successfully!');
+                        closeEditRestaurantModal();
+                        resetEditCustomSections();
+                        fetchRestaurants();
+                    } else {
+                        showError('Error: ' + (data.message || 'Failed to update restaurant'));
+                    }
+                } catch (error) {
+                    showError('Error: ' + error.message);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+

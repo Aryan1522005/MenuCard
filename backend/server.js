@@ -107,13 +107,32 @@ app.get('/api/health', (req, res) => {
 // Serve login page
 const serveHtmlFile = (filename) => {
   return (req, res) => {
-    const filePath = path.join(__dirname, '../' + filename);
-    if (fs.existsSync(filePath)) {
+    // Try multiple possible locations - check current directory first for Railway
+    const possiblePaths = [
+      path.join(__dirname, filename),  // First try same directory (backend/) - for Railway
+      path.join(__dirname, '../' + filename),  // Then parent directory - for local dev
+      path.join(__dirname, '../../' + filename),  // Two levels up
+      path.join(process.cwd(), filename),  // Root directory
+      path.join(process.cwd(), '..', filename),  // One level up from root
+    ];
+    
+    let filePath = null;
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        filePath = possiblePath;
+        console.log(`✅ Serving ${filename} from: ${filePath}`);
+        break;
+      }
+    }
+    
+    if (filePath) {
       res.sendFile(filePath);
     } else {
+      console.error(`❌ File not found: ${filename}. Checked paths: ${possiblePaths.join(', ')}`);
       res.status(404).json({ 
         success: false, 
-        message: 'File not found' 
+        message: 'File not found',
+        filename: filename
       });
     }
   };

@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reviews Dashboard - Admin</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Global user role variable
+        let currentUserRole = 'viewer';
+        
+        // Get API base URL for network access
+        function getApiBaseUrl() {
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5000/api';
+            } else if (hostname.includes('railway.app') || hostname.includes('up.railway.app')) {
+                // On Railway, use the same host
+                return `https://${hostname}/api`;
+            } else {
+                return `http://${hostname}:5000/api`;
+            }
+        }
+        
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            const token = localStorage.getItem('adminToken');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Verify token is still valid and get user info
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                const userData = await response.json();
+                currentUserRole = userData.user.role;
+                
+                // Update user role indicator
+                updateUserRoleIndicator(currentUserRole);
+                
+                // Update UI based on user role
+                updateUIForUserRole(currentUserRole);
+                
+            } catch (error) {
+                localStorage.removeItem('adminToken');
+                window.location.href = 'login.html';
+                return;
+            }
+        });
+        
+        // Update user role indicator
+        function updateUserRoleIndicator(role) {
+            const roleText = document.getElementById('userRoleText');
+            if (roleText) {
+                const roleDisplay = role.charAt(0).toUpperCase() + role.slice(1);
+                roleText.textContent = roleDisplay;
+                
+                // Add color coding based on role
+                const indicator = document.getElementById('userRoleIndicator');
+                if (indicator) {
+                    switch(role) {
+                        case 'admin':
+                            indicator.className = 'px-3 py-2 text-sm font-medium text-red-800 bg-red-100 rounded-lg border border-red-200';
+                            break;
+                        case 'manager':
+                            indicator.className = 'px-3 py-2 text-sm font-medium text-blue-800 bg-blue-100 rounded-lg border border-blue-200';
+                            break;
+                        case 'viewer':
+                            indicator.className = 'px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg border border-gray-200';
+                            break;
+                    }
+                }
+            }
+        }
+        
+        // Update UI based on user role
+        function updateUIForUserRole(role) {
+            console.log('Current user role:', role);
+            
+            // Hide delete all reviews button for non-admin users
+            const deleteAllButton = document.querySelector('button[onclick="deleteAllReviews()"]');
+            if (deleteAllButton && role !== 'admin') {
+                deleteAllButton.style.display = 'none';
+            }
+            
+            // Hide export functions for viewers
+            if (role === 'viewer') {
+                // Hide the entire export section
+                const exportSection = document.querySelector('.bg-white.rounded-lg.shadow-md.p-6.mb-6');
+                if (exportSection && exportSection.querySelector('h2').textContent.includes('Export')) {
+                    exportSection.style.display = 'none';
+                }
+                
+                // Hide individual export buttons
+                const exportButtons = document.querySelectorAll('button[onclick*="export"], button[onclick*="download"]');
+                exportButtons.forEach(btn => btn.style.display = 'none');
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Reviews Dashboard</h1>
+                    <p class="text-sm text-gray-600">Manage customer feedback</p>
+                </div>
+                <div class="flex gap-4 items-center">
+                    <div id="userRoleIndicator" class="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg border">
+                        Logged in as: <span id="userRoleText">Loading...</span>
+                    </div>
+                    <a href="/admin.html" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                        Back to Admin
+                    </a>
+                    <a href="/admin-menu-manager.html" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Menu Manager
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Restaurant Selector -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Select Restaurant</h2>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <div class="flex-1 relative">
+                    <input type="text" id="restaurantSearch" placeholder="Search restaurants..." class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <div id="searchSuggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg hidden max-h-60 overflow-y-auto">
+                        <!-- Search suggestions will appear here -->
+                    </div>
+                </div>
+                <button onclick="searchRestaurants()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center gap-2">
+                    <span>🔍</span>
+                    <span>Search</span>
+                </button>
+                <select id="restaurantSelect" class="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">Choose a restaurant...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Export and Actions Panel -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Export & Actions</h2>
+            <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <!-- PDF Export -->
+                <div class="w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Export PDF (Date Range)</label>
+                    <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                        <input type="date" id="startDate" class="w-full sm:w-48 h-11 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <input type="date" id="endDate" class="w-full sm:w-48 h-11 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <button onclick="exportToPDF()" class="h-11 px-5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors inline-flex items-center gap-2 font-medium">
+                            <span>📄</span><span>Export PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quick Actions</label>
+                    <div>
+                        <button onclick="deleteAllReviews()" class="h-11 px-5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center gap-2 font-medium">
+                            <span>🗑️</span><span>Delete All Reviews</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Export All -->
+                <div class="w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Export All Data</label>
+                    <div>
+                        <button onclick="exportAllToPDF()" class="h-11 px-5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2 font-medium">
+                            <span>📊</span><span>Export All PDF</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex items-center justify-center h-32">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600">Loading feedback data...</span>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <h3 class="font-semibold mb-2">Error Loading Reviews Dashboard</h3>
+            <p id="errorMessage"></p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div id="statsCards" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+            <!-- Stats will be populated here -->
+        </div>
+
+        <!-- Feedback Table -->
+        <div id="feedbackTable" class="hidden bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">All Feedback (<span id="feedbackCount">0</span>)</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Food</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ambiance</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pricing</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comments</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feedbackTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Feedback rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let restaurants = [];
+        let currentFeedback = [];
+        let currentStats = null;
+        
+        // Helper function to get auth headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('adminToken');
+            return {
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        // Load restaurants
+        async function loadRestaurants() {
+            try {
+                console.log('Loading restaurants...');
+                const response = await axios.get(`${getApiBaseUrl()}/admin/restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                console.log('Restaurants response:', response.data);
+                
+                if (response.data.success && response.data.restaurants.length > 0) {
+                    restaurants = response.data.restaurants;
+                    populateRestaurantSelect();
+                    setupSearchFunctionality();
+                    // Auto-select first restaurant
+                    document.getElementById('restaurantSelect').value = restaurants[0].id;
+                    loadFeedback(restaurants[0].id);
+                } else {
+                    showError('No restaurants found. Please add a restaurant first.');
+                }
+            } catch (err) {
+                console.error('Error loading restaurants:', err);
+                showError('Failed to load restaurants: ' + (err.response?.data?.message || err.message));
+            }
+        }
+
+        // Setup search functionality
+        function setupSearchFunctionality() {
+            const searchInput = document.getElementById('restaurantSearch');
+            const suggestionsDiv = document.getElementById('searchSuggestions');
+            
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                
+                if (searchTerm.length === 0) {
+                    suggestionsDiv.classList.add('hidden');
+                    return;
+                }
+                
+                // Filter restaurants based on search term
+                const filteredRestaurants = restaurants.filter(restaurant => 
+                    restaurant.name.toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredRestaurants.length > 0) {
+                    suggestionsDiv.innerHTML = filteredRestaurants.map(restaurant => `
+                        <div class="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0" 
+                             onclick="selectRestaurantFromSearch(${restaurant.id}, '${restaurant.name}')">
+                            <div class="font-medium text-gray-900">${restaurant.name}</div>
+                        </div>
+                    `).join('');
+                    suggestionsDiv.classList.remove('hidden');
+                } else {
+                    suggestionsDiv.innerHTML = '<div class="px-4 py-2 text-gray-500">No restaurants found</div>';
+                    suggestionsDiv.classList.remove('hidden');
+                }
+            });
+            
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                    suggestionsDiv.classList.add('hidden');
+                }
+            });
+        }
+
+        // Select restaurant from search suggestions
+        function selectRestaurantFromSearch(restaurantId, restaurantName) {
+            document.getElementById('restaurantSelect').value = restaurantId;
+            document.getElementById('restaurantSearch').value = restaurantName;
+            document.getElementById('searchSuggestions').classList.add('hidden');
+            loadFeedback(restaurantId);
+        }
+
+        // Search restaurants function
+        function searchRestaurants() {
+            const searchTerm = document.getElementById('restaurantSearch').value.toLowerCase().trim();
+            
+            if (searchTerm.length === 0) {
+                alert('Please enter a search term');
+                return;
+            }
+            
+            const filteredRestaurants = restaurants.filter(restaurant => 
+                restaurant.name.toLowerCase().includes(searchTerm)
+            );
+            
+            if (filteredRestaurants.length === 0) {
+                alert('No restaurants found matching your search');
+                return;
+            }
+            
+            if (filteredRestaurants.length === 1) {
+                // Auto-select if only one result
+                selectRestaurantFromSearch(filteredRestaurants[0].id, filteredRestaurants[0].name);
+            } else {
+                // Show suggestions dropdown
+                const suggestionsDiv = document.getElementById('searchSuggestions');
+                suggestionsDiv.innerHTML = filteredRestaurants.map(restaurant => `
+                    <div class="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0" 
+                         onclick="selectRestaurantFromSearch(${restaurant.id}, '${restaurant.name}')">
+                        <div class="font-medium text-gray-900">${restaurant.name}</div>
+                    </div>
+                `).join('');
+                suggestionsDiv.classList.remove('hidden');
+            }
+        }
+
+        function populateRestaurantSelect() {
+            const select = document.getElementById('restaurantSelect');
+            select.innerHTML = '';
+            
+            restaurants.forEach(restaurant => {
+                const option = document.createElement('option');
+                option.value = restaurant.id;
+                option.textContent = restaurant.name;
+                select.appendChild(option);
+            });
+        }
+
+        // Load feedback for selected restaurant
+        async function loadFeedback(restaurantId) {
+            try {
+                showLoading();
+                console.log('Loading feedback for restaurant:', restaurantId);
+                
+                const [feedbackRes, statsRes] = await Promise.all([
+                    axios.get(`${getApiBaseUrl()}/feedback/restaurant/${restaurantId}`, {
+                        headers: getAuthHeaders()
+                    }),
+                    axios.get(`${getApiBaseUrl()}/feedback/stats/${restaurantId}`, {
+                        headers: getAuthHeaders()
+                    })
+                ]);
+
+                if (feedbackRes.data.success) {
+                    currentFeedback = feedbackRes.data.feedback;
+                    populateFeedbackTable();
+                }
+
+                if (statsRes.data.success) {
+                    currentStats = statsRes.data.stats;
+                    populateStatsCards();
+                }
+
+                hideLoading();
+            } catch (err) {
+                console.error('Error loading feedback:', err);
+                showError('Failed to load feedback: ' + (err.response?.data?.message || err.message));
+            }
+        }
+
+        function populateFeedbackTable() {
+            const tbody = document.getElementById('feedbackTableBody');
+            const countSpan = document.getElementById('feedbackCount');
+            
+            countSpan.textContent = currentFeedback.length;
+            
+            if (currentFeedback.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-gray-500">
+                            No feedback found for this restaurant
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = currentFeedback.map(item => {
+                    const avgRating = ((item.food_quality + item.service + item.ambiance + item.pricing) / 4).toFixed(1);
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                ${item.phone_number || 'Not provided'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                ${'⭐'.repeat(item.food_quality)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                ${'⭐'.repeat(item.service)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                ${'⭐'.repeat(item.ambiance)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                ${'⭐'.repeat(item.pricing)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                ${avgRating} ⭐
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
+                                ${item.comments || '-'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                ${new Date(item.created_at).toLocaleDateString()}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <button onclick="deleteFeedback(${item.id})" class="text-red-600 hover:text-red-800 font-medium">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            
+            document.getElementById('feedbackTable').classList.remove('hidden');
+        }
+
+        function populateStatsCards() {
+            if (!currentStats) return;
+            
+            const statsContainer = document.getElementById('statsCards');
+            statsContainer.innerHTML = `
+                <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-blue-100 text-sm">Total Reviews</p>
+                            <p class="text-3xl font-bold mt-1">${currentStats.total_reviews || 0}</p>
+                        </div>
+                        <div class="bg-blue-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-green-100 text-sm">Overall Rating</p>
+                            <p class="text-3xl font-bold mt-1">
+                                ${currentStats.overall_rating ? parseFloat(currentStats.overall_rating).toFixed(2) : 'N/A'}
+                                <span class="text-lg ml-1">/ 5</span>
+                            </p>
+                        </div>
+                        <div class="bg-green-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-yellow-100 text-sm">Food Quality</p>
+                            <p class="text-3xl font-bold mt-1">
+                                ${currentStats.avg_food_quality ? parseFloat(currentStats.avg_food_quality).toFixed(2) : 'N/A'}
+                                <span class="text-lg ml-1">/ 5</span>
+                            </p>
+                        </div>
+                        <div class="bg-yellow-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-purple-100 text-sm">Service</p>
+                            <p class="text-3xl font-bold mt-1">
+                                ${currentStats.avg_service ? parseFloat(currentStats.avg_service).toFixed(2) : 'N/A'}
+                                <span class="text-lg ml-1">/ 5</span>
+                            </p>
+                        </div>
+                        <div class="bg-purple-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-orange-100 text-sm">Ambiance</p>
+                            <p class="text-3xl font-bold mt-1">
+                                ${currentStats.avg_ambiance ? parseFloat(currentStats.avg_ambiance).toFixed(2) : 'N/A'}
+                                <span class="text-lg ml-1">/ 5</span>
+                            </p>
+                        </div>
+                        <div class="bg-orange-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg shadow-md p-6 text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-pink-100 text-sm">Pricing</p>
+                            <p class="text-3xl font-bold mt-1">
+                                ${currentStats.avg_pricing ? parseFloat(currentStats.avg_pricing).toFixed(2) : 'N/A'}
+                                <span class="text-lg ml-1">/ 5</span>
+                            </p>
+                        </div>
+                        <div class="bg-pink-400 bg-opacity-30 rounded-full p-3">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('statsCards').classList.remove('hidden');
+        }
+
+        function showLoading() {
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('statsCards').classList.add('hidden');
+            document.getElementById('feedbackTable').classList.add('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+
+        async function deleteFeedback(id) {
+            if (!confirm('Are you sure you want to delete this feedback?')) {
+                return;
+            }
+
+            try {
+                await axios.delete(`${getApiBaseUrl()}/feedback/${id}`, {
+                    headers: getAuthHeaders()
+                });
+                // Reload feedback
+                const restaurantId = document.getElementById('restaurantSelect').value;
+                loadFeedback(restaurantId);
+            } catch (err) {
+                alert('Failed to delete feedback');
+            }
+        }
+
+        // PDF Export Functions
+        async function exportToPDF() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const restaurantId = document.getElementById('restaurantSelect').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates');
+                return;
+            }
+            
+            if (!restaurantId) {
+                alert('Please select a restaurant');
+                return;
+            }
+
+            try {
+                const response = await axios.get(`${getApiBaseUrl()}/feedback/export-pdf/${restaurantId}`, {
+                    params: { startDate, endDate },
+                    responseType: 'blob',
+                    headers: getAuthHeaders()
+                });
+                
+                const blob = new Blob([response.data], { type: 'application/pdf' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reviews-${startDate}-to-${endDate}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (err) {
+                alert('Failed to export PDF: ' + (err.response?.data?.message || err.message));
+            }
+        }
+
+        async function exportAllToPDF() {
+            const restaurantId = document.getElementById('restaurantSelect').value;
+            
+            if (!restaurantId) {
+                alert('Please select a restaurant');
+                return;
+            }
+
+            try {
+                const response = await axios.get(`${getApiBaseUrl()}/feedback/export-pdf/${restaurantId}`, {
+                    responseType: 'blob',
+                    headers: getAuthHeaders()
+                });
+                
+                const blob = new Blob([response.data], { type: 'application/pdf' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `all-reviews-${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (err) {
+                alert('Failed to export PDF: ' + (err.response?.data?.message || err.message));
+            }
+        }
+
+        async function deleteAllReviews() {
+            const restaurantId = document.getElementById('restaurantSelect').value;
+            
+            if (!restaurantId) {
+                alert('Please select a restaurant');
+                return;
+            }
+
+            // Warning about downloading first
+            const downloadFirst = confirm('⚠️ WARNING: This will permanently delete ALL reviews for this restaurant.\n\nHave you downloaded/exported the reviews you want to keep?\n\nClick OK to continue with deletion, or Cancel to export first.');
+            
+            if (!downloadFirst) {
+                return;
+            }
+
+            // Double confirmation
+            const finalConfirm = confirm('⚠️ FINAL WARNING: This action cannot be undone!\n\nAre you absolutely sure you want to delete ALL reviews for this restaurant?');
+            
+            if (!finalConfirm) {
+                return;
+            }
+
+            try {
+                await axios.delete(`${getApiBaseUrl()}/feedback/restaurant/${restaurantId}/all`, {
+                    headers: getAuthHeaders()
+                });
+                alert('All reviews have been deleted successfully');
+                // Reload feedback
+                loadFeedback(restaurantId);
+            } catch (err) {
+                alert('Failed to delete all reviews: ' + (err.response?.data?.message || err.message));
+            }
+        }
+
+        // Event listeners
+        document.getElementById('restaurantSelect').addEventListener('change', function(e) {
+            if (e.target.value) {
+                loadFeedback(parseInt(e.target.value));
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, initializing...');
+            loadRestaurants();
+            
+            // Set default date range (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+        });
+    </script>
+</body>
+</html>
