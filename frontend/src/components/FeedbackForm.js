@@ -80,6 +80,7 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
+  const [commentsError, setCommentsError] = useState(null);
 
   // Phone number validation function
   const validatePhoneNumber = (phone) => {
@@ -140,6 +141,12 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
       !formData.pricing
     ) {
       setError('Please provide all ratings');
+      return;
+    }
+
+    // Validate comments length
+    if (formData.comments && formData.comments.length > 150) {
+      setError('Additional comments cannot exceed 150 characters');
       return;
     }
 
@@ -320,19 +327,41 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
 
           {/* Comments */}
           <div className="space-y-3">
-            <label className="block text-lg font-semibold text-gray-800">
-              Additional Comments / Suggestions
-              <span className="text-sm font-normal text-gray-500">(Optional)</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-lg font-semibold text-gray-800">
+                Additional Comments / Suggestions
+                <span className="text-sm font-normal text-gray-500">(Optional)</span>
+              </label>
+              <span className={`text-sm font-medium ${formData.comments.length > 150 ? 'text-red-500' : 'text-gray-500'}`}>
+                {formData.comments.length} / 150
+              </span>
+            </div>
             <textarea
               value={formData.comments}
-              onChange={(e) =>
-                setFormData({ ...formData, comments: e.target.value })
-              }
-              placeholder="Share your thoughts, suggestions, or any specific feedback..."
+              onChange={(e) => {
+                const value = e.target.value;
+                setFormData({ ...formData, comments: value });
+                if (value.length > 150) {
+                  setCommentsError('Comments cannot exceed 150 characters');
+                } else {
+                  setCommentsError(null);
+                }
+              }}
+              placeholder="Share your thoughts, suggestions, or any specific feedback... (max 150 characters)"
               rows="4"
-              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+              maxLength={150}
+              className={`w-full px-4 py-4 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white ${
+                commentsError ? 'border-red-500' : 'border-gray-200 focus:border-blue-500'
+              }`}
             />
+            {commentsError && (
+              <div className="text-red-500 text-sm flex items-center gap-1">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {commentsError}
+              </div>
+            )}
           </div>
 
           {/* Error Message */}

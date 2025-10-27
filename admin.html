@@ -948,10 +948,11 @@
                     <ul style="color: #991b1b; margin: 0.5rem 0 0 1.5rem;">
                         <li>All restaurants and their data</li>
                         <li>All menu items and categories</li>
+                        <li>All reviews and feedback</li>
                         <li>All QR codes and associated files</li>
                     </ul>
                 </div>
-                <p style="color: #374151; margin-bottom: 1rem;">After reset, restaurant IDs will start from 1 again.</p>
+                <p style="color: #374151; margin-bottom: 1rem;">After reset, all IDs (restaurants, menu items, categories, and reviews) will start from 1 again.</p>
                 <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem;">Type <strong>RESET ALL</strong> in the box below to confirm:</p>
                 <input type="text" id="resetConfirmationInput" placeholder="Type 'RESET ALL' to confirm" 
                        style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 1rem; margin-bottom: 1.5rem;">
@@ -2082,7 +2083,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showSuccess('All restaurants and data have been reset successfully! Restaurant IDs will start from 1.');
+                    showSuccess('All data has been reset successfully! All IDs (restaurants, menu items, categories, and reviews) will start from 1.');
                     closeResetAllModal();
                     fetchRestaurants(); // Refresh the restaurant list
                 } else {

@@ -57,8 +57,39 @@ const pool = {
       let convertedSql = convertMySQLToPostgreSQL(sql);
       convertedSql = convertPlaceholders(convertedSql, params);
       
+      // Check statement type
+      const sqlUpper = sql.trim().toUpperCase();
+      const isInsert = /^INSERT\s+INTO/i.test(sql.trim());
+      const isUpdate = /^UPDATE/i.test(sql.trim());
+      const isDelete = /^DELETE/i.test(sql.trim());
+      
+      // Check if it's an INSERT statement and add RETURNING clause if not present
+      if (isInsert && !/RETURNING/i.test(convertedSql)) {
+        // Add RETURNING id to INSERT statements
+        convertedSql += ' RETURNING id';
+      }
+      
       // Execute query
       const result = await pgPool.query(convertedSql, params);
+      
+      // For INSERT statements, wrap the result to mimic MySQL behavior
+      if (isInsert) {
+        const insertId = result.rows.length > 0 ? result.rows[0].id : null;
+        return [{
+          insertId,
+          affectedRows: result.rowCount,
+          changedRows: result.rowCount
+        }, []];
+      }
+      
+      // For UPDATE and DELETE statements, wrap the result to include affectedRows
+      if (isUpdate || isDelete) {
+        return [{
+          affectedRows: result.rowCount,
+          changedRows: result.rowCount,
+          insertId: null
+        }, []];
+      }
       
       // Return in MySQL2 format: [rows, fields]
       // MySQL2 returns an array where [0] is rows and [1] is field info
@@ -78,7 +109,21 @@ const pool = {
       return await this.bulkInsert(sql, params[0]);
     }
     
-    return await this.execute(sql, params);
+    const result = await this.execute(sql, params);
+    
+    // For INSERT/UPDATE/DELETE, we wrap the result to mimic MySQL behavior
+    // But we should return the actual result rows for SELECT queries
+    // The issue is that execute() returns different structures
+    
+    // Check if first element is an object with insertId/affectedRows (INSERT/UPDATE/DELETE)
+    if (Array.isArray(result) && result[0] && typeof result[0] === 'object' && 
+        ('insertId' in result[0] || 'affectedRows' in result[0])) {
+      // This is the wrapped result from execute for INSERT/UPDATE/DELETE
+      return result;
+    }
+    
+    // For SELECT queries, return the actual rows
+    return result;
   },
 
   // Special handler for bulk inserts
@@ -113,16 +158,63 @@ const pool = {
   async connect() {
     const client = await pgPool.connect();
     
+    let inTransaction = false;
+    
     // Wrap the client to use our execute method
     return {
       ...client,
       execute: async (sql, params) => {
-        const convertedSql = convertPlaceholders(convertMySQLToPostgreSQL(sql), params);
+        const sqlUpper = sql.trim().toUpperCase();
+        const isInsert = /^INSERT\s+INTO/i.test(sql.trim());
+        const isUpdate = /^UPDATE/i.test(sql.trim());
+        const isDelete = /^DELETE/i.test(sql.trim());
+        
+        let convertedSql = convertPlaceholders(convertMySQLToPostgreSQL(sql), params);
+        
+        if (isInsert && !/RETURNING/i.test(convertedSql)) {
+          convertedSql += ' RETURNING id';
+        }
+        
         const result = await client.query(convertedSql, params);
+        
+        if (isInsert) {
+          const insertId = result.rows.length > 0 ? result.rows[0].id : null;
+          return [{
+            insertId,
+            affectedRows: result.rowCount,
+            changedRows: result.rowCount
+          }, []];
+        }
+        
+        if (isUpdate || isDelete) {
+          return [{
+            affectedRows: result.rowCount,
+            changedRows: result.rowCount,
+            insertId: null
+          }, []];
+        }
+        
         return [result.rows, result.fields || []];
+      },
+      beginTransaction: async () => {
+        await client.query('BEGIN');
+        inTransaction = true;
+      },
+      commit: async () => {
+        await client.query('COMMIT');
+        inTransaction = false;
+      },
+      rollback: async () => {
+        await client.query('ROLLBACK');
+        inTransaction = false;
       },
       release: () => client.release(),
     };
+  },
+  
+  // Alias for connect() to match MySQL2 API
+  async getConnection() {
+    return await this.connect();
   },
 
   // End the pool

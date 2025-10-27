@@ -18,27 +18,25 @@ router.get('/:slug', async (req, res) => {
     const { slug } = req.params;
     
     // Get restaurant info
-    const restaurantResult = await pool.query(
+    const [restaurantRows] = await pool.query(
       'SELECT * FROM restaurants WHERE slug = $1',
       [slug]
     );
     
-    if (restaurantResult.rows.length === 0) {
+    if (!restaurantRows || restaurantRows.length === 0) {
       return res.status(404).json({ 
         success: false, 
         message: 'Restaurant not found' 
       });
     }
     
-    const restaurant = restaurantResult.rows[0];
+    const restaurant = restaurantRows[0];
     
     // Get categories with images
-    const categoryResult = await pool.query(
+    const [categoryRows] = await pool.query(
       'SELECT id, name, image_url FROM categories WHERE restaurant_id = $1 ORDER BY id ASC',
       [restaurant.id]
     );
-    
-    const categoryRows = categoryResult.rows;
     
     const categoryMap = {};
     const categoryOrder = [];

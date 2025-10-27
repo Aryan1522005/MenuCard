@@ -18,7 +18,7 @@ router.get('/restaurants', requireViewer, async (req, res) => {
     let query = `
       SELECT 
         r.*,
-        COUNT(CASE WHEN mi.is_available = 1 THEN mi.id END) as menu_item_count
+        COUNT(CASE WHEN mi.is_available = true THEN mi.id END) as menu_item_count
       FROM restaurants r
       LEFT JOIN menu_items mi ON r.id = mi.restaurant_id
     `;
@@ -155,7 +155,8 @@ router.post('/restaurants', canAddRestaurant, async (req, res) => {
     // Prepare custom_sections JSON
     const customSectionsJson = custom_sections ? JSON.stringify(custom_sections) : null;
     
-    // Insert new restaurant
+    // Insert new restaurant with image_url
+    console.log('Attempting to create restaurant:', { name, slug });
     const [result] = await pool.query(`
       INSERT INTO restaurants (
         name, slug, logo_url, image_url, description,
@@ -168,6 +169,19 @@ router.post('/restaurants', canAddRestaurant, async (req, res) => {
       wifi_password || null, customSectionsJson
     ]);
     
+    console.log('Insert result:', result);
+    console.log('Result type:', typeof result);
+    console.log('Has insertId:', result && 'insertId' in result);
+    
+    if (!result || typeof result !== 'object' || !('insertId' in result)) {
+      console.error('Invalid result structure from INSERT:', result);
+      return res.status(500).json({
+        success: false,
+        message: 'Database query returned invalid result structure',
+        debug: { result }
+      });
+    }
+    
     res.json({
       success: true,
       message: 'Restaurant created successfully',
@@ -176,9 +190,12 @@ router.post('/restaurants', canAddRestaurant, async (req, res) => {
     
   } catch (error) {
     console.error('Error creating restaurant:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
       success: false, 
-      message: 'Internal server error' 
+      message: 'Internal server error',
+      error: error.message,
+      details: error.detail || error.code
     });
   }
 });
@@ -228,7 +245,7 @@ router.put('/restaurants/:id', requireViewer, async (req, res) => {
       customSectionsJson = custom_sections ? JSON.stringify(custom_sections) : null;
     }
     
-    // Update restaurant
+    // Update restaurant with image_url
     await pool.query(`
       UPDATE restaurants 
       SET name = ?, slug = ?, logo_url = ?, image_url = ?, description = ?,
@@ -395,12 +412,20 @@ router.post('/restaurants/:id/reset-menu', canDeleteRestaurant, async (req, res)
     await connection.execute('DELETE FROM menu_items WHERE restaurant_id = ?', [id]);
     await connection.execute('DELETE FROM categories WHERE restaurant_id = ?', [id]);
 
-    // Reset AUTO_INCREMENT for dependent tables globally (safe even if other restaurants exist)
-    await connection.execute('ALTER TABLE menu_items AUTO_INCREMENT = 1');
-    await connection.execute('ALTER TABLE categories AUTO_INCREMENT = 1');
+    // Check if tables are now empty, if so reset sequences
+    const [menuCount] = await connection.execute('SELECT COUNT(*) as count FROM menu_items');
+    const [categoryCount] = await connection.execute('SELECT COUNT(*) as count FROM categories');
+    
+    if (menuCount[0].count === 0) {
+      await connection.execute('ALTER SEQUENCE menu_items_id_seq RESTART WITH 1');
+    }
+    
+    if (categoryCount[0].count === 0) {
+      await connection.execute('ALTER SEQUENCE categories_id_seq RESTART WITH 1');
+    }
 
     await connection.commit();
-    res.json({ success: true, message: 'Restaurant menu reset. Items and categories deleted and IDs reset to 1.' });
+    res.json({ success: true, message: 'Restaurant menu reset. Items and categories deleted.' });
   } catch (error) {
     try { await (connection && connection.rollback()); } catch (_) {}
     console.error('Error resetting restaurant menu:', error);
@@ -410,29 +435,25 @@ router.post('/restaurants/:id/reset-menu', canDeleteRestaurant, async (req, res)
   }
 });
 
-// POST /api/admin/reset-all - Delete ALL data and reset auto-increment IDs
+// POST /api/admin/reset-all - Delete ALL data
 // WARNING: This is a destructive operation!
 router.post('/reset-all', requireAdmin, async (req, res) => {
   try {
-    // Disable foreign key checks temporarily
-    await pool.query('SET FOREIGN_KEY_CHECKS = 0');
-    
-    // Delete all data
+    // Delete all data (PostgreSQL handles foreign key constraints automatically)
     await pool.query('DELETE FROM menu_items');
     await pool.query('DELETE FROM restaurants');
     await pool.query('DELETE FROM categories');
+    await pool.query('DELETE FROM feedback');
     
-    // Reset auto-increment counters to 1
-    await pool.query('ALTER TABLE restaurants AUTO_INCREMENT = 1');
-    await pool.query('ALTER TABLE menu_items AUTO_INCREMENT = 1');
-    await pool.query('ALTER TABLE categories AUTO_INCREMENT = 1');
-    
-    // Re-enable foreign key checks
-    await pool.query('SET FOREIGN_KEY_CHECKS = 1');
+    // Reset PostgreSQL sequences to start from 1
+    await pool.query('ALTER SEQUENCE menu_items_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE restaurants_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE categories_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE feedback_id_seq RESTART WITH 1');
     
     res.json({ 
       success: true, 
-      message: 'All data deleted and auto-increment counters reset to 1' 
+      message: 'All data deleted successfully and IDs reset to start from 1' 
     });
   } catch (error) {
     console.error('Error resetting database:', error);

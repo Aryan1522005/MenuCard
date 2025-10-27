@@ -71,8 +71,8 @@ function LandingPage() {
             View Sample Menu
           </Link>
           
-          <Link 
-            to="/admin/menu/cafe-aroma"
+          <a 
+            href="http://localhost:5000/admin.html"
             style={{
               background: 'rgba(255, 255, 255, 0.1)',
               color: 'white',
@@ -94,7 +94,7 @@ function LandingPage() {
             }}
           >
             Admin Panel
-          </Link>
+          </a>
         </div>
         
         <div style={{

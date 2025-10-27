@@ -76,6 +76,14 @@ router.post('/submit', async (req, res) => {
       });
     }
 
+    // Validate comments length (max 150 characters)
+    if (comments && comments.length > 150) {
+      return res.status(400).json({
+        success: false,
+        message: 'Additional comments cannot exceed 150 characters'
+      });
+    }
+
     const [result] = await pool.query(
       `INSERT INTO feedback 
        (restaurant_id, phone_number, food_quality, service, ambiance, pricing, comments) 
@@ -242,23 +250,38 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
 
 // Delete all feedback for a restaurant (admin only)
 router.delete('/restaurant/:restaurant_id/all', verifyToken, requireAdmin, async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { restaurant_id } = req.params;
 
-    const [result] = await pool.query('DELETE FROM feedback WHERE restaurant_id = ?', [restaurant_id]);
+    await connection.beginTransaction();
 
+    // Delete all feedback for this restaurant
+    await connection.execute('DELETE FROM feedback WHERE restaurant_id = ?', [restaurant_id]);
+
+    // Check if feedback table is now empty, if so reset sequence
+    const [feedbackCount] = await connection.execute('SELECT COUNT(*) as count FROM feedback');
+    
+    if (feedbackCount[0].count === 0) {
+      await connection.execute('ALTER SEQUENCE feedback_id_seq RESTART WITH 1');
+    }
+
+    await connection.commit();
+    
     res.json({
       success: true,
-      message: `Deleted ${result.affectedRows} feedback entries`,
-      deleted_count: result.affectedRows
+      message: 'All feedback deleted successfully and ID sequence reset to 1'
     });
   } catch (error) {
+    try { await (connection && connection.rollback()); } catch (_) {}
     console.error('Error deleting all feedback:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete all feedback',
       error: error.message
     });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -415,210 +438,190 @@ router.delete('/restaurant/:restaurant_id/all', verifyToken, requireAdmin, async
     }
     yPos += 20;
 
-    // Individual Reviews
+    // Individual Reviews - Table Format (Excel-like)
     doc.fontSize(12).font('Arial Unicode MS', 'bold');
     doc.text('Individual Reviews', margin, yPos);
-    yPos += 15;
+    yPos += 20;
 
-    // Define column layout
-    const pageWidth = 550; // Total page width
-    const columnWidth = (pageWidth - margin * 2 - 20) / 2; // Two columns with gap
-    const leftColumnX = margin + 10;
-    const rightColumnX = margin + columnWidth + 30;
-    const columnGap = 20;
-
-    // Helper function to get column position
-    const getColumnX = (columnIndex) => {
-        return columnIndex === 0 ? leftColumnX : rightColumnX;
-    };
-
-    // Helper function to get column width
-    const getColumnWidth = () => columnWidth - 20;
-
-    // Process reviews in pairs for two-column layout
-    for (let i = 0; i < feedback.length; i += 2) {
-        const leftReview = feedback[i];
-        const rightReview = feedback[i + 1];
-        
-        // Check if we need a new page for this pair
-        const pairHeight = 140; // Height needed for a pair of reviews
-        if (needsNewPage(pairHeight)) {
-            doc.addPage();
-            yPos = 40;
-        }
-
-        // Process left column review
-        if (leftReview) {
-            const currentY = yPos;
-            const reviewX = getColumnX(0);
-            
-            doc.fontSize(10).font('Arial Unicode MS', 'bold');
-            doc.text(`Review ${i + 1}:`, reviewX, currentY);
-            let currentYPos = currentY + 12;
-
-            // Customer and Date Info
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`Phone: ${leftReview.phone_number || 'Not provided'}`, reviewX, currentYPos);
-            currentYPos += 10;
-            doc.text(`Date: ${new Date(leftReview.created_at).toLocaleDateString()}`, reviewX, currentYPos);
-            currentYPos += 12;
-
-            // Category Ratings
-            const categoryHeight = 15;
-            const starsX = reviewX + 50;
-            const ratingValueX = reviewX + 130; // Increased spacing to prevent overlap
-
-            // Food rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Food:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, leftReview.food_quality);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${leftReview.food_quality}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Service rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Service:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, leftReview.service);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${leftReview.service}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Ambiance rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Ambiance:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, leftReview.ambiance);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${leftReview.ambiance}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Pricing rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Pricing:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, leftReview.pricing);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${leftReview.pricing}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight + 3;
-
-            // Average rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            const average = ((leftReview.food_quality + leftReview.service + leftReview.ambiance + leftReview.pricing) / 4).toFixed(1);
-            doc.text(`Average: ${average} / 5`, reviewX, currentYPos);
-            currentYPos += 12;
-
-            // Comments section
-            if (leftReview.comments) {
-                doc.fontSize(8).font('Arial Unicode MS', 'bold');
-                doc.text('Comments:', reviewX, currentYPos);
-                currentYPos += 8;
-                doc.fontSize(8).font('Arial Unicode MS', 'normal');
-                doc.text(leftReview.comments, reviewX, currentYPos, { width: getColumnWidth() });
-                currentYPos += 15;
-            }
-
-            // Separator line for left column
-            doc.strokeColor('#cccccc');
-            doc.moveTo(reviewX, currentYPos + 3).lineTo(reviewX + getColumnWidth(), currentYPos + 3).stroke();
-            currentYPos += 8;
-        }
-
-        // Process right column review
-        if (rightReview) {
-            const currentY = yPos;
-            const reviewX = getColumnX(1);
-            
-            doc.fontSize(10).font('Arial Unicode MS', 'bold');
-            doc.text(`Review ${i + 2}:`, reviewX, currentY);
-            let currentYPos = currentY + 12;
-
-            // Customer and Date Info
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`Phone: ${rightReview.phone_number || 'Not provided'}`, reviewX, currentYPos);
-            currentYPos += 10;
-            doc.text(`Date: ${new Date(rightReview.created_at).toLocaleDateString()}`, reviewX, currentYPos);
-            currentYPos += 12;
-
-            // Category Ratings
-            const categoryHeight = 15;
-            const starsX = reviewX + 50;
-            const ratingValueX = reviewX + 130; // Increased spacing to prevent overlap
-
-            // Food rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Food:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, rightReview.food_quality);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${rightReview.food_quality}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Service rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Service:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, rightReview.service);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${rightReview.service}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Ambiance rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Ambiance:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, rightReview.ambiance);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${rightReview.ambiance}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight;
-
-            // Pricing rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            doc.text(`Pricing:`, reviewX, currentYPos);
-            doc.fontSize(12).font('Arial Unicode MS', 'normal');
-            addStars(doc, starsX, currentYPos, rightReview.pricing);
-            doc.fontSize(8).font('Arial Unicode MS', 'normal');
-            doc.text(`(${rightReview.pricing}/5)`, ratingValueX, currentYPos);
-            currentYPos += categoryHeight + 3;
-
-            // Average rating
-            doc.fontSize(9).font('Arial Unicode MS', 'bold');
-            const average = ((rightReview.food_quality + rightReview.service + rightReview.ambiance + rightReview.pricing) / 4).toFixed(1);
-            doc.text(`Average: ${average} / 5`, reviewX, currentYPos);
-            currentYPos += 12;
-
-            // Comments section
-            if (rightReview.comments) {
-                doc.fontSize(8).font('Arial Unicode MS', 'bold');
-                doc.text('Comments:', reviewX, currentYPos);
-                currentYPos += 8;
-                doc.fontSize(8).font('Arial Unicode MS', 'normal');
-                doc.text(rightReview.comments, reviewX, currentYPos, { width: getColumnWidth() });
-                currentYPos += 15;
-            }
-
-            // Separator line for right column
-            doc.strokeColor('#cccccc');
-            doc.moveTo(reviewX, currentYPos + 3).lineTo(reviewX + getColumnWidth(), currentYPos + 3).stroke();
-            currentYPos += 8;
-        }
-
-        // Move to next row
-        yPos += 140; // Height for a pair of reviews
-    }
-    
-    // Finalize PDF and send response
-    doc.end();
-    
-    // Set up response headers
+    // Set up response headers BEFORE piping
     const safeName = String(restaurant[0].name || 'restaurant').replace(/[^a-z0-9\-\s_]/gi, '').trim().replace(/\s+/g, '-');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="reviews-${safeName}-${new Date().toISOString().split('T')[0]}.pdf"`);
     
-    // Pipe PDF to response
+    // Pipe PDF to response BEFORE drawing
     doc.pipe(res);
+
+    // Define column widths for table (adjusted for better visibility)
+    const columnWidths = [25, 70, 110, 30, 40, 40, 35, 160];
+    const startX = margin;
+    const rowHeight = 15;
+    const firstRowHeight = 18;
+    const tableWidth = 510;
+    
+    // Table headers
+    const headers = ['#', 'Date', 'Phone', 'Food', 'Service', 'Ambiance', 'Price', 'Comments'];
+    
+    // Draw header row with background
+    doc.rect(startX, yPos - 5, tableWidth, firstRowHeight)
+        .fillColor('#E3F2FD')
+        .fill();
+    doc.strokeColor('#1976D2').lineWidth(1.5)
+        .rect(startX, yPos - 5, tableWidth, firstRowHeight)
+        .stroke();
+    
+    // Draw vertical lines between header columns
+    let headerColX = startX;
+    headers.forEach((header, idx) => {
+        if (idx > 0) {
+            doc.strokeColor('#1976D2').lineWidth(0.8);
+            doc.moveTo(headerColX, yPos - 5).lineTo(headerColX, yPos + firstRowHeight - 5).stroke();
+        }
+        headerColX += columnWidths[idx];
+    });
+    // Draw last vertical line for header
+    doc.strokeColor('#1976D2').lineWidth(0.8);
+    doc.moveTo(headerColX, yPos - 5).lineTo(headerColX, yPos + firstRowHeight - 5).stroke();
+    
+    // Draw header text
+    doc.fontSize(8).font('Arial Unicode MS', 'bold');
+    let currentX = startX + 3;
+    headers.forEach((header, index) => {
+      doc.fillColor('#000000');
+      doc.text(header, currentX, yPos, { width: columnWidths[index] - 2, ellipsis: true });
+      currentX += columnWidths[index];
+    });
+    
+    yPos += firstRowHeight;
+    
+    // Draw data rows
+    for (let index = 0; index < feedback.length; index++) {
+        const review = feedback[index];
+        
+        // Check if we need a new page
+        if (yPos + rowHeight * 2 > pageHeight - 50) {
+            doc.addPage();
+            yPos = 40;
+            
+            // Redraw header on new page
+            doc.rect(startX, yPos - 5, tableWidth, firstRowHeight)
+                .fillColor('#E3F2FD')
+                .fill();
+            doc.strokeColor('#1976D2').lineWidth(1.5)
+                .rect(startX, yPos - 5, tableWidth, firstRowHeight)
+                .stroke();
+            
+            // Draw vertical lines between header columns on new page
+            let newHeaderColX = startX;
+            headers.forEach((header, idx) => {
+                if (idx > 0) {
+                    doc.strokeColor('#1976D2').lineWidth(0.8);
+                    doc.moveTo(newHeaderColX, yPos - 5).lineTo(newHeaderColX, yPos + firstRowHeight - 5).stroke();
+                }
+                newHeaderColX += columnWidths[idx];
+            });
+            // Draw last vertical line for header
+            doc.strokeColor('#1976D2').lineWidth(0.8);
+            doc.moveTo(newHeaderColX, yPos - 5).lineTo(newHeaderColX, yPos + firstRowHeight - 5).stroke();
+            
+            doc.fontSize(8).font('Arial Unicode MS', 'bold');
+            currentX = startX + 3;
+            headers.forEach((header, idx) => {
+              doc.fillColor('#000000');
+              doc.text(header, currentX, yPos, { width: columnWidths[idx] - 2, ellipsis: true });
+              currentX += columnWidths[idx];
+            });
+            yPos += firstRowHeight;
+        }
+        
+        // Format phone number (don't truncate)
+        let phoneText = 'N/A';
+        if (review.phone_number) {
+            phoneText = review.phone_number;
+        }
+        
+        // Format date
+        const dateObj = new Date(review.created_at);
+        const dateText = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+        
+        // Calculate required height for comments
+        let requiredRowHeight = rowHeight;
+        if (review.comments && review.comments.length > 0 && review.comments !== '-') {
+            // Estimate height needed based on text length (allow ~20 chars per line)
+            const charsPerLine = 20;
+            const linesNeeded = Math.ceil(review.comments.length / charsPerLine);
+            if (linesNeeded > 1) {
+                requiredRowHeight = Math.max(rowHeight, linesNeeded * 12);
+            }
+        }
+        
+        // Row data
+        const rowData = [
+            String(index + 1),
+            dateText,
+            phoneText,
+            review.food_quality.toString(),
+            review.service.toString(),
+            review.ambiance.toString(),
+            review.pricing.toString(),
+            (review.comments && review.comments.length > 0) ? review.comments : '-'
+        ];
+        
+        // Draw row border
+        doc.strokeColor('#DDDDDD').lineWidth(0.5);
+        doc.rect(startX, yPos - 3, tableWidth, requiredRowHeight).stroke();
+        
+        // Draw vertical lines between columns
+        let colX = startX;
+        headers.forEach((header, idx) => {
+            if (idx > 0) {
+                doc.strokeColor('#CCCCCC').lineWidth(0.5);
+                doc.moveTo(colX, yPos - 3).lineTo(colX, yPos + requiredRowHeight - 3).stroke();
+            }
+            colX += columnWidths[idx];
+        });
+        // Draw last vertical line
+        doc.strokeColor('#CCCCCC').lineWidth(0.5);
+        doc.moveTo(colX, yPos - 3).lineTo(colX, yPos + requiredRowHeight - 3).stroke();
+        
+        // Draw row data
+        doc.fontSize(8).font('Arial Unicode MS', 'normal');
+        currentX = startX + 3;
+        rowData.forEach((data, idx) => {
+            const cellWidth = columnWidths[idx];
+            // Truncate text if it's too long (except for comments column)
+            let displayText = data;
+            if (idx !== 7 && idx !== 2) { // Don't truncate phone or comments
+                if (data.length > cellWidth / 3) {
+                    displayText = data.substring(0, Math.floor(cellWidth / 3) - 2) + '...';
+                }
+            }
+            
+            doc.fillColor('#000000');
+            
+            // Special handling for comments to wrap text
+            if (idx === 7 && data && data !== '-') {
+                // Use height parameter for multi-line text - allow expansion
+                doc.text(data, currentX, yPos, { 
+                    width: cellWidth - 6,
+                    height: requiredRowHeight,
+                    ellipsis: true,
+                    lineGap: 1
+                });
+            } else {
+                doc.text(displayText, currentX, yPos, { 
+                    width: cellWidth - 3,
+                    ellipsis: true
+                });
+            }
+            
+            currentX += cellWidth;
+        });
+        
+        yPos += requiredRowHeight;
+    }
+    
+    // Finalize PDF
+    doc.end();
     
   } catch (error) {
     console.error('Error exporting PDF:', error);
