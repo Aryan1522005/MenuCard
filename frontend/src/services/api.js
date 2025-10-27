@@ -6,8 +6,11 @@ const getApiUrl = () => {
   const hostname = window.location.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5000/api';
+  } else if (hostname.includes('vercel.app')) {
+    // Production deployment - use Railway backend
+    return 'https://menucard-production.up.railway.app/api';
   } else {
-    // For network access, use the same hostname but port 5000
+    // For other domains, try to use the same hostname but port 5000
     return `http://${hostname}:5000/api`;
   }
 };
