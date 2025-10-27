@@ -35,7 +35,8 @@ app.use(cors({
       'http://localhost:5000',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5000',
-      'https://menu-card-2hha.vercel.app'  // Production frontend
+      'https://menu-card-2hha.vercel.app',  // Production frontend
+      'https://menu-card-2hha-omwxl50sb-aryan-shettys-projects-d3a649f4.vercel.app'  // Preview deployment
     ];
     
     // Allow any 192.168.x.x network IP
