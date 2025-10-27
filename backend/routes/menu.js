@@ -49,8 +49,8 @@ router.get('/:slug', async (req, res) => {
     });
     
     // Get menu items grouped by category
-    // Check if is_veg column exists for backward compatibility
-    let selectQuery = `
+    // Always include is_veg since we're using PostgreSQL with the column
+    const selectQuery = `
       SELECT 
         category,
         id,
@@ -59,42 +59,12 @@ router.get('/:slug', async (req, res) => {
         price,
         is_available,
         sort_order,
-        item_code
+        item_code,
+        COALESCE(is_veg, true) as is_veg
       FROM menu_items 
       WHERE restaurant_id = ? AND is_available = true
       ORDER BY sort_order, item_code
     `;
-    
-    try {
-      // Try to add is_veg column if it exists
-      const [checkColumn] = await pool.query(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'menu_items' 
-        AND COLUMN_NAME = 'is_veg'
-      `);
-      
-      if (checkColumn.length > 0) {
-        selectQuery = `
-          SELECT 
-            category,
-            id,
-            name,
-            description,
-            price,
-            is_available,
-            sort_order,
-            item_code,
-            is_veg
-          FROM menu_items 
-          WHERE restaurant_id = ? AND is_available = true
-          ORDER BY sort_order, item_code
-        `;
-      }
-    } catch (e) {
-      console.log('is_veg column check failed, using basic query');
-    }
     
     const [menuRows] = await pool.query(selectQuery, [restaurant.id]);
     
