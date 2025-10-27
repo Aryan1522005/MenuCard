@@ -299,7 +299,7 @@ router.get('/qr/:slug', requireViewer, async (req, res) => {
     }
     
     const restaurant = restaurantRows[0];
-    const frontendUrl = 'http://192.168.1.106:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     
     // Generate QR code
     const qrData = await qrGenerator.generateRestaurantQR(restaurant, frontendUrl);
@@ -344,7 +344,7 @@ router.get('/qr/:slug/download', requireViewer, async (req, res) => {
     }
     
     const restaurant = restaurantRows[0];
-    const frontendUrl = 'http://192.168.1.106:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     
     // Generate QR code file
     const qrData = await qrGenerator.generateRestaurantQR(restaurant, frontendUrl);
