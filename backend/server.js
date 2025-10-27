@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
@@ -78,8 +79,11 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static files from frontend build
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+// Serve static files from frontend build (only if it exists)
+const frontendBuildPath = path.join(__dirname, '../frontend/build');
+if (fs.existsSync(frontendBuildPath)) {
+  app.use(express.static(frontendBuildPath));
+}
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Routes
@@ -122,20 +126,22 @@ app.get('/admin-users.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../admin-users.html'));
 });
 
-// Serve main pages
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
-});
+// Serve main pages (only if frontend build exists)
+if (fs.existsSync(frontendBuildPath)) {
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+  });
 
-// Catch-all handler for React routing
-app.get('*', (req, res, next) => {
-  // If it's an API request, let it fall through to 404 handler
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  // Serve React app for all other routes
-  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
-});
+  // Catch-all handler for React routing
+  app.get('*', (req, res, next) => {
+    // If it's an API request, let it fall through to 404 handler
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    // Serve React app for all other routes
+    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
