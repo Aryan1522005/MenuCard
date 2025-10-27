@@ -24,8 +24,8 @@ router.get('/:slug', async (req, res) => {
     
     const restaurant = restaurantRows[0];
     
-    // Generate menu URL (this will be your Firebase hosting URL in production)
-    const frontendUrl = 'http://192.168.1.106:3000';
+    // Generate menu URL based on environment
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const menuUrl = `${frontendUrl}/menu/${slug}`;
     
     // Generate QR code
@@ -82,8 +82,8 @@ router.get('/:slug/download', async (req, res) => {
     
     const restaurant = restaurantRows[0];
     
-    // Generate menu URL
-    const frontendUrl = 'http://192.168.1.106:3000';
+    // Generate menu URL based on environment
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const menuUrl = `${frontendUrl}/menu/${slug}`;
     
     // Generate QR code as PNG buffer

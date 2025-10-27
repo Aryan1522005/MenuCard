@@ -105,26 +105,27 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve login page
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../login.html'));
-});
+const serveHtmlFile = (filename) => {
+  return (req, res) => {
+    const filePath = path.join(__dirname, '../' + filename);
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        message: 'File not found' 
+      });
+    }
+  };
+};
+
+app.get('/login.html', serveHtmlFile('login.html'));
 
 // Serve admin pages
-app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../admin.html'));
-});
-
-app.get('/admin-menu-manager.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../admin-menu-manager.html'));
-});
-
-app.get('/admin-reviews.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../admin-reviews.html'));
-});
-
-app.get('/admin-users.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../admin-users.html'));
-});
+app.get('/admin.html', serveHtmlFile('admin.html'));
+app.get('/admin-menu-manager.html', serveHtmlFile('admin-menu-manager.html'));
+app.get('/admin-reviews.html', serveHtmlFile('admin-reviews.html'));
+app.get('/admin-users.html', serveHtmlFile('admin-users.html'));
 
 // Serve main pages (only if frontend build exists)
 if (fs.existsSync(frontendBuildPath)) {
