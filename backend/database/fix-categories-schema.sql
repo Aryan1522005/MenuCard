@@ -1,6 +1,23 @@
 -- Fix categories table to add missing columns
 -- Run this on your Neon database in the SQL Editor
 
+-- First, remove the old UNIQUE constraint on just 'name' if it exists
+DO $$ 
+BEGIN
+    -- Drop old unique constraint/index on just name
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'categories_name_key'
+    ) THEN
+        ALTER TABLE categories DROP CONSTRAINT categories_name_key;
+    END IF;
+END $$;
+
+-- Drop old unique index on name if it exists
+DROP INDEX IF EXISTS categories_name_key;
+DROP INDEX IF EXISTS categories_name_idx;
+DROP INDEX IF EXISTS unique_restaurant_category;
+
 -- Add restaurant_id column if it doesn't exist
 DO $$ 
 BEGIN
