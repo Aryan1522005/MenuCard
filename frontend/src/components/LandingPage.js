@@ -47,7 +47,7 @@ function LandingPage() {
           flexWrap: 'wrap'
         }}>
           <Link 
-            to="/menu/cafe-aroma"
+            to="/menu/Shree-Krishna-Palace"
             style={{
               background: 'rgba(255, 255, 255, 0.2)',
               color: 'white',
