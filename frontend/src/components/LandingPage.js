@@ -71,35 +71,48 @@ function LandingPage() {
             View Sample Menu
           </Link>
           
-          {/* Admin Panel - Only show on localhost for now */}
-          {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-            <a 
-              href="http://localhost:5000/admin.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-                padding: '15px 30px',
-                borderRadius: '50px',
-                textDecoration: 'none',
-                fontWeight: '600',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                transition: 'all 0.3s ease',
-                display: 'inline-block'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.2)';
-                e.target.style.transform = 'translateY(-2px)';
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.target.style.transform = 'translateY(0)';
-              }}
-            >
-              Admin Panel
-            </a>
-          )}
+          {/* Admin Panel - Show always, link to backend */}
+          {(() => {
+            const getAdminUrl = () => {
+              const hostname = window.location.hostname;
+              if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5000/admin.html';
+              } else if (hostname.includes('vercel.app')) {
+                return 'https://menucard-production.up.railway.app/admin.html';
+              } else {
+                return `http://${hostname}:5000/admin.html`;
+              }
+            };
+
+            return (
+              <a 
+                href={getAdminUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                  padding: '15px 30px',
+                  borderRadius: '50px',
+                  textDecoration: 'none',
+                  fontWeight: '600',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  transition: 'all 0.3s ease',
+                  display: 'inline-block'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.transform = 'translateY(-2px)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.transform = 'translateY(0)';
+                }}
+              >
+                Admin Panel
+              </a>
+            );
+          })()}
         </div>
         
         <div style={{
