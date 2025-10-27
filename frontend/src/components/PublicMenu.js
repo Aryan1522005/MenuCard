@@ -281,7 +281,6 @@ const PublicMenu = () => {
               <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:16 }}>
                 {categoryNames.map((categoryName) => {
                   const imageUrl = normalizeImageUrl(categoryMeta[categoryName]?.image_url) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80';
-                  const items = categories[categoryName] || [];
                   return (
                     <button
                       key={categoryName}
