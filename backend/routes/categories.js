@@ -59,11 +59,14 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
       [restaurant_id, name, description, image_url, color, sort_order]
     );
     
+    // Get the inserted ID - PostgreSQL returns it in result.insertId
+    const categoryId = result.insertId;
+    
     res.json({
       success: true,
       message: 'Category created successfully',
       category: {
-        id: result.insertId,
+        id: categoryId,
         restaurant_id,
         name,
         description,
@@ -73,8 +76,9 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating category:', error);
+    console.error('Error stack:', error.stack);
     
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
       return res.status(400).json({
         success: false,
         message: 'Category with this name already exists in this restaurant'
@@ -84,7 +88,8 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating category',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
