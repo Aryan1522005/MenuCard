@@ -23,7 +23,7 @@
         
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', async function() {
-            const token = localStorage.getItem('adminToken');
+            const token = sessionStorage.getItem('adminToken');
             if (!token) {
                 window.location.href = 'login.html';
                 return;
@@ -38,7 +38,7 @@
                 });
                 
                 if (!response.ok) {
-                    localStorage.removeItem('adminToken');
+                    sessionStorage.removeItem('adminToken');
                     window.location.href = 'login.html';
                     return;
                 }
@@ -51,7 +51,7 @@
                 updateUserRoleIndicator(currentUserRole);
                 
             } catch (error) {
-                localStorage.removeItem('adminToken');
+                sessionStorage.removeItem('adminToken');
                 window.location.href = 'login.html';
                 return;
             }
@@ -518,7 +518,7 @@
         
         // Helper function to get auth headers
         function getAuthHeaders() {
-            const token = localStorage.getItem('adminToken');
+            const token = sessionStorage.getItem('adminToken');
             return {
                 'Authorization': `Bearer ${token}`
             };
