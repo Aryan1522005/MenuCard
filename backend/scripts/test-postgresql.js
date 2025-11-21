@@ -1,15 +1,40 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Helper to convert Neon host to pooler host
+function convertToPoolerHost(host) {
+  if (!host) return host;
+  if (host.includes('.pooler.neon.tech')) return host;
+  if (host.includes('.neon.tech') && !host.includes('.pooler.')) {
+    // Extract the endpoint ID (ep-xxx part)
+    const endpointMatch = host.match(/^(ep-[^.\s]+)/);
+    if (endpointMatch) {
+      const endpointId = endpointMatch[1];
+      const poolerHost = `${endpointId}.pooler.neon.tech`;
+      console.log('🔄 Using Neon connection pooler for better scalability');
+      return poolerHost;
+    }
+    // Fallback to simple replace if pattern doesn't match
+    const poolerHost = host.replace('.neon.tech', '.pooler.neon.tech');
+    console.log('🔄 Using Neon connection pooler for better scalability');
+    return poolerHost;
+  }
+  return host;
+}
+
 // Test PostgreSQL connection configuration
 const testPostgreSQLConnection = async () => {
+  const host = convertToPoolerHost(process.env.DB_HOST);
+  
   const config = {
-    host: process.env.DB_HOST || 'localhost',
+    host: host || 'localhost',
     port: process.env.DB_PORT || 5432,
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'qr_menu_system',
-    ssl: process.env.DB_HOST?.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+    ssl: host?.includes('neon.tech') || host?.includes('pooler') 
+      ? { rejectUnauthorized: false } 
+      : false,
   };
 
   console.log('🔍 Testing PostgreSQL connection...');
