@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { menuAPI } from '../services/api';
 import RestaurantHeader from './RestaurantHeader';
@@ -23,6 +23,7 @@ const PublicMenu = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [vegFilter, setVegFilter] = useState('all'); // 'all', 'veg', 'nonveg'
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const isHandlingPopState = useRef(false);
 
   const fetchMenu = useCallback(async () => {
     try {
@@ -45,6 +46,53 @@ const PublicMenu = () => {
   }, [slug]);
 
   useEffect(() => { fetchMenu(); }, [fetchMenu]);
+
+  // Initialize history state on mount
+  useEffect(() => {
+    // Set initial history state if not already set
+    if (!window.history.state) {
+      window.history.replaceState(null, '', window.location.href);
+    }
+  }, []);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // Mark that we're handling a popstate event to prevent history updates
+      isHandlingPopState.current = true;
+      
+      // When browser back/forward is used, update state based on history
+      if (event.state && event.state.category) {
+        setSelectedCategory(event.state.category);
+        setSearchTerm('');
+      } else {
+        setSelectedCategory(null);
+        setSearchTerm('');
+      }
+      
+      // Reset flag after a brief delay to allow state updates to complete
+      setTimeout(() => {
+        isHandlingPopState.current = false;
+      }, 0);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update browser history when category is selected or deselected (but not when handling popstate)
+  useEffect(() => {
+    // Don't update history if we're handling a popstate event
+    if (isHandlingPopState.current) {
+      return;
+    }
+
+    if (selectedCategory) {
+      // Push new state when category is selected
+      window.history.pushState({ category: selectedCategory }, '', window.location.href);
+    }
+    // Note: We don't replace state when going back to null, as that's handled by the back button
+  }, [selectedCategory]);
 
   // Search functionality
   const handleSearch = useCallback(async (term) => {
@@ -301,7 +349,10 @@ const PublicMenu = () => {
         ) : (
           <div>
             <div style={{ marginBottom:8 }}>
-              <button onClick={() => { setSelectedCategory(null); setSearchTerm(''); }} style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:9999, background:'#374151', color:'#fff', border:'none', marginBottom:8, fontSize:16, fontWeight:600, cursor:'pointer', transition:'all 0.2s ease' }}>
+              <button onClick={() => { 
+                // Go back in history - this will trigger popstate event which updates the state
+                window.history.back();
+              }} style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:9999, background:'#374151', color:'#fff', border:'none', marginBottom:8, fontSize:16, fontWeight:600, cursor:'pointer', transition:'all 0.2s ease' }}>
                 <span style={{ fontSize:20 }}>←</span>
                 <span style={{ fontWeight:600 }}>Back</span>
               </button>
