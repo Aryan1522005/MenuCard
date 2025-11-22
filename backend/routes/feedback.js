@@ -285,6 +285,27 @@ router.delete('/restaurant/:restaurant_id/all', verifyToken, requireAdmin, async
   }
 });
 
+  // Hash phone number for privacy (show first 2 and last 2 digits)
+  const hashPhoneNumber = (phone) => {
+    if (!phone || phone === 'N/A' || phone === 'Not provided') {
+      return 'N/A';
+    }
+    const phoneStr = String(phone).trim();
+    if (phoneStr.length <= 4) {
+      return '****';
+    }
+    // For +91XXXXXXXXXX format, show +91******XX
+    if (phoneStr.startsWith('+91') && phoneStr.length >= 8) {
+      const last2 = phoneStr.slice(-2);
+      return `+91******${last2}`;
+    }
+    // For other formats, show first 2 and last 2
+    const first2 = phoneStr.substring(0, 2);
+    const last2 = phoneStr.slice(-2);
+    const masked = '*'.repeat(Math.max(0, phoneStr.length - 4));
+    return `${first2}${masked}${last2}`;
+  };
+
   // Export feedback to PDF
   router.get('/export-pdf/:restaurant_id', verifyToken, requireAdmin, async (req, res) => {
   try {
@@ -533,10 +554,10 @@ router.delete('/restaurant/:restaurant_id/all', verifyToken, requireAdmin, async
             yPos += firstRowHeight;
         }
         
-        // Format phone number (don't truncate)
+        // Format phone number with hashing for privacy
         let phoneText = 'N/A';
         if (review.phone_number) {
-            phoneText = review.phone_number;
+            phoneText = hashPhoneNumber(review.phone_number);
         }
         
         // Format date

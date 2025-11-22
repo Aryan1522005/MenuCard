@@ -69,6 +69,27 @@ const ReviewsDashboard = ({ restaurantId, restaurantName }) => {
     }
   };
 
+  // Hash phone number for privacy (show first 2 and last 2 digits)
+  const hashPhoneNumber = (phone) => {
+    if (!phone || phone === 'N/A' || phone === 'Not provided') {
+      return 'N/A';
+    }
+    const phoneStr = String(phone).trim();
+    if (phoneStr.length <= 4) {
+      return '****';
+    }
+    // For +91XXXXXXXXXX format, show +91******XX
+    if (phoneStr.startsWith('+91') && phoneStr.length >= 8) {
+      const last2 = phoneStr.slice(-2);
+      return `+91******${last2}`;
+    }
+    // For other formats, show first 2 and last 2
+    const first2 = phoneStr.substring(0, 2);
+    const last2 = phoneStr.slice(-2);
+    const masked = '*'.repeat(Math.max(0, phoneStr.length - 4));
+    return `${first2}${masked}${last2}`;
+  };
+
   const downloadPDF = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -143,7 +164,7 @@ const ReviewsDashboard = ({ restaurantId, restaurantName }) => {
       const reviewData = feedback.map(f => {
         const avgRating = ((f.food_quality + f.service + f.ambiance + f.pricing) / 4).toFixed(1);
         return [
-          f.customer_name || 'Anonymous',
+          hashPhoneNumber(f.phone_number),
           `${avgRating} ⭐`,
           new Date(f.created_at).toLocaleDateString(),
           f.comments ? f.comments.substring(0, 60) + (f.comments.length > 60 ? '...' : '') : '-'
@@ -187,7 +208,7 @@ const ReviewsDashboard = ({ restaurantId, restaurantName }) => {
 
   const downloadCSV = () => {
     const csvData = feedback.map(f => ({
-      'Phone Number': f.phone_number || 'Not provided',
+      'Phone Number': hashPhoneNumber(f.phone_number),
       'Food Quality': f.food_quality,
       'Service': f.service,
       'Ambiance': f.ambiance,

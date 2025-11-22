@@ -416,33 +416,45 @@ const PublicMenu = () => {
                     <button
                       key={categoryName}
                       onClick={() => setSelectedCategory(categoryName)}
-                      style={{ position:'relative', cursor:'pointer', borderRadius:24, overflow:'hidden', height:180, marginBottom:20, boxShadow:'0 10px 20px rgba(0,0,0,.08)', border:'none', width:'100%' }}
+                      style={{ 
+                        position:'relative', 
+                        cursor:'pointer', 
+                        borderRadius:24, 
+                        overflow:'hidden', 
+                        height:180, 
+                        marginBottom:20, 
+                        boxShadow:'0 10px 20px rgba(0,0,0,.08)', 
+                        border:'none', 
+                        width:'100%',
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
+                        willChange: 'transform'
+                      }}
                     >
                       <img 
                         src={imageUrl} 
                         alt={categoryName} 
                         style={{ 
                           position:'absolute', 
-                          inset:0, 
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
                           width:'100%', 
                           height:'100%', 
                           objectFit:'cover', 
+                          objectPosition: 'center',
                           zIndex:0,
                           imageRendering: 'auto',
                           WebkitImageRendering: 'auto',
-                          backfaceVisibility: 'hidden',
-                          WebkitBackfaceVisibility: 'hidden',
-                          transform: 'translateZ(0)',
-                          WebkitTransform: 'translateZ(0)',
-                          msTransform: 'translateZ(0)',
-                          willChange: 'auto',
+                          msInterpolationMode: 'bicubic',
                           filter: 'none',
                           WebkitFilter: 'none',
-                          opacity: 1,
-                          WebkitOpacity: 1
+                          opacity: 1
                         }} 
                         loading="eager"
                         decoding="async"
+                        draggable="false"
                       />
                       <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)', zIndex:10 }} />
                       <div style={{ position:'absolute', inset:0, zIndex:20, display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center' }}>

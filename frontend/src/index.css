@@ -161,6 +161,22 @@ code {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
+/* Prevent image blur for category images */
+img {
+  image-rendering: auto;
+  -webkit-image-rendering: auto;
+  image-rendering: -webkit-optimize-contrast;
+  -ms-interpolation-mode: bicubic;
+}
+
+/* Ensure category images render crisply */
+button img {
+  image-rendering: auto;
+  -webkit-image-rendering: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 .grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
