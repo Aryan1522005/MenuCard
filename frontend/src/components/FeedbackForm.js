@@ -296,7 +296,7 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
               Phone Number
               <span className="text-sm font-normal text-gray-500 ml-2">(Optional)</span>
             </label>
-            <div className="relative">
+            <div className="relative max-w-md">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '18px', height: '18px', color: '#3b82f6' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -310,7 +310,7 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                   setFormData({ ...formData, phone_number: formatted });
                 }}
                 placeholder="Enter your 10-digit mobile number"
-                className="w-full pl-11 pr-4 py-3.5 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white"
+                className="w-full pl-11 pr-4 py-4 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white shadow-sm"
               />
               {formData.phone_number && formData.phone_number !== '+91' && !validatePhoneNumber(formData.phone_number) && (
                 <div className="absolute -bottom-6 left-0 flex items-center gap-2 text-red-600 text-sm font-medium mt-1">
@@ -371,8 +371,8 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
           </div>
 
           {/* Comments */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="space-y-3 ml-3">
+            <div className="flex items-center justify-between max-w-md">
               <label className="block text-base font-semibold text-gray-900">
                 Additional Comments / Suggestions
                 <span className="text-sm font-normal text-gray-500 ml-2">(Optional)</span>
@@ -387,24 +387,26 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                 {formData.comments.length} / 150
               </span>
             </div>
-            <textarea
-              value={formData.comments}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFormData({ ...formData, comments: value });
-                if (value.length > 150) {
-                  setCommentsError('Comments cannot exceed 150 characters');
-                } else {
-                  setCommentsError(null);
-                }
-              }}
-              placeholder="Share your thoughts, suggestions, or any specific feedback... (max 150 characters)"
-              rows="5"
-              maxLength={150}
-              className={`w-full px-4 py-3.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white ${
-                commentsError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
-              }`}
-            />
+            <div className="max-w-md">
+              <textarea
+                value={formData.comments}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData({ ...formData, comments: value });
+                  if (value.length > 150) {
+                    setCommentsError('Comments cannot exceed 150 characters');
+                  } else {
+                    setCommentsError(null);
+                  }
+                }}
+                placeholder="Share your thoughts, suggestions, or any specific feedback... (max 150 characters)"
+                rows="5"
+                maxLength={150}
+                className={`w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white shadow-sm ${
+                  commentsError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+                }`}
+              />
+            </div>
             {commentsError && (
               <div className="text-red-500 text-sm flex items-center gap-1">
                 <svg className="" fill="currentColor" viewBox="0 0 20 20" style={{ width: '14px', height: '14px' }}>
@@ -428,17 +430,18 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
           )}
 
           {/* Submit Button */}
-          <div className="pt-4">
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`w-full py-4 rounded-md font-bold text-base text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
-                submitting
-                  ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                  : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transform'
-              }`}
-              style={!submitting ? { background: 'linear-gradient(to right, #2563eb, #4f46e5, #7c3aed)' } : {}}
-            >
+          <div className="pt-4 ml-3">
+            <div className="max-w-md">
+              <button
+                type="submit"
+                disabled={submitting}
+                className={`w-full py-4 rounded-lg font-bold text-base text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
+                  submitting
+                    ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transform'
+                }`}
+                style={!submitting ? { background: 'linear-gradient(to right, #2563eb, #4f46e5, #7c3aed)' } : {}}
+              >
               {submitting ? (
                 <span className="flex items-center justify-center gap-3">
                   <svg className="animate-spin text-white" fill="none" viewBox="0 0 24 24" style={{ width: '18px', height: '18px' }}>
@@ -455,7 +458,8 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                   <span>Submit Feedback</span>
                 </span>
               )}
-            </button>
+              </button>
+            </div>
           </div>
         </form>
       </div>

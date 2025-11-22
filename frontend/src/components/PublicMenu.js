@@ -132,6 +132,17 @@ const PublicMenu = () => {
   }, [slug]);
 
   // Debounced search - clear immediately if search term is empty
+  // Reset veg filter to 'all' when a bar category is selected
+  useEffect(() => {
+    if (selectedCategory) {
+      const currentCategoryMeta = categoryMeta[selectedCategory];
+      const isBarCategory = currentCategoryMeta?.menu_type === 'bar';
+      if (isBarCategory && vegFilter !== 'all') {
+        setVegFilter('all');
+      }
+    }
+  }, [selectedCategory, categoryMeta, vegFilter]);
+
   useEffect(() => {
     // If search term is empty, clear results immediately
     if (!searchTerm.trim()) {
@@ -366,10 +377,10 @@ const PublicMenu = () => {
                             const categoryMetaForSearch = searchCategoryMeta[categoryName];
                             const isBarCategory = categoryMetaForSearch?.menu_type === 'bar';
                             
-                            // For bar menu: only show icon if is_veg is explicitly set in Excel (not null/undefined)
-                            // For food menu: show icon (default to true if null for backward compatibility)
-                            const iconValue = isBarCategory 
-                              ? item.is_veg  // For bar: pass null if not set (no icon), or actual value if set
+                            // Determine icon type: 2 = bar/cocktail, 0/1 = veg/non-veg, or bar category
+                            const isBarItem = item.is_veg === 2 || isBarCategory;
+                            const iconValue = isBarItem 
+                              ? null  // For bar: don't show veg/non-veg icon
                               : (item.is_veg !== null && item.is_veg !== undefined ? item.is_veg : true); // For food: default to true
                             
                             return (
@@ -383,7 +394,27 @@ const PublicMenu = () => {
                             }}>
                               <div style={{ flex:1, display:'flex', alignItems:'flex-start', gap:8, minWidth:0 }}>
                                 <div style={{ paddingTop:2, flexShrink:0 }}>
-                                  <VegNonVegIcon isVeg={iconValue} />
+                                  {isBarItem ? (
+                                    <svg 
+                                      width="18" 
+                                      height="18" 
+                                      viewBox="0 0 24 24" 
+                                      fill="none" 
+                                      stroke="#d97706" 
+                                      strokeWidth="2" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                      style={{ flexShrink: 0 }}
+                                      title="Cocktail"
+                                    >
+                                      <path d="M3 3l9 9v9" />
+                                      <path d="M21 3L12 12" />
+                                      <path d="M9 21h6" />
+                                      <path d="M3 3l18 0" />
+                                    </svg>
+                                  ) : (
+                                    <VegNonVegIcon isVeg={iconValue} />
+                                  )}
                                 </div>
                                 <div style={{ flex:1, minWidth:0 }}>
                                   <div style={{ fontSize:14, fontWeight:500, color:'#111827', marginBottom:2, lineHeight:1.4 }}>
@@ -527,99 +558,110 @@ const PublicMenu = () => {
               </div>
             </div>
 
-            {/* Veg/Non-Veg Filter */}
-            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
-              <button
-                onClick={() => setVegFilter('all')}
-                style={{
-                  display:'inline-flex',
-                  alignItems:'center',
-                  gap:6,
-                  padding:'8px 16px',
-                  borderRadius:20,
-                  border: vegFilter === 'all' ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                  background: vegFilter === 'all' ? '#eff6ff' : '#fff',
-                  color: vegFilter === 'all' ? '#2563eb' : '#6b7280',
-                  fontWeight: vegFilter === 'all' ? 600 : 500,
-                  fontSize:14,
-                  cursor:'pointer',
-                  transition:'all 0.2s'
-                }}
-              >
-                <span>All Items</span>
-              </button>
-              <button
-                onClick={() => setVegFilter('veg')}
-                style={{
-                  display:'inline-flex',
-                  alignItems:'center',
-                  gap:6,
-                  padding:'8px 16px',
-                  borderRadius:20,
-                  border: vegFilter === 'veg' ? '2px solid #22c55e' : '2px solid #e5e7eb',
-                  background: vegFilter === 'veg' ? '#f0fdf4' : '#fff',
-                  color: vegFilter === 'veg' ? '#15803d' : '#6b7280',
-                  fontWeight: vegFilter === 'veg' ? 600 : 500,
-                  fontSize:14,
-                  cursor:'pointer',
-                  transition:'all 0.2s'
-                }}
-              >
-                <div style={{ 
-                  display:'inline-flex',
-                  alignItems:'center',
-                  justifyContent:'center',
-                  width:'16px',
-                  height:'16px',
-                  border:'2px solid #22c55e',
-                  borderRadius:'2px'
-                }}>
-                  <div style={{ 
-                    width:'6px',
-                    height:'6px',
-                    backgroundColor:'#22c55e',
-                    borderRadius:'50%'
-                  }} />
+            {/* Veg/Non-Veg Filter - Only show for food menus, not bar menus */}
+            {(() => {
+              const currentCategoryMeta = categoryMeta[selectedCategory];
+              const isBarCategory = currentCategoryMeta?.menu_type === 'bar';
+              
+              if (isBarCategory) {
+                return null; // Don't show filter buttons for bar menus
+              }
+              
+              return (
+                <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+                  <button
+                    onClick={() => setVegFilter('all')}
+                    style={{
+                      display:'inline-flex',
+                      alignItems:'center',
+                      gap:6,
+                      padding:'8px 16px',
+                      borderRadius:20,
+                      border: vegFilter === 'all' ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                      background: vegFilter === 'all' ? '#eff6ff' : '#fff',
+                      color: vegFilter === 'all' ? '#2563eb' : '#6b7280',
+                      fontWeight: vegFilter === 'all' ? 600 : 500,
+                      fontSize:14,
+                      cursor:'pointer',
+                      transition:'all 0.2s'
+                    }}
+                  >
+                    <span>All Items</span>
+                  </button>
+                  <button
+                    onClick={() => setVegFilter('veg')}
+                    style={{
+                      display:'inline-flex',
+                      alignItems:'center',
+                      gap:6,
+                      padding:'8px 16px',
+                      borderRadius:20,
+                      border: vegFilter === 'veg' ? '2px solid #22c55e' : '2px solid #e5e7eb',
+                      background: vegFilter === 'veg' ? '#f0fdf4' : '#fff',
+                      color: vegFilter === 'veg' ? '#15803d' : '#6b7280',
+                      fontWeight: vegFilter === 'veg' ? 600 : 500,
+                      fontSize:14,
+                      cursor:'pointer',
+                      transition:'all 0.2s'
+                    }}
+                  >
+                    <div style={{ 
+                      display:'inline-flex',
+                      alignItems:'center',
+                      justifyContent:'center',
+                      width:'16px',
+                      height:'16px',
+                      border:'2px solid #22c55e',
+                      borderRadius:'2px'
+                    }}>
+                      <div style={{ 
+                        width:'6px',
+                        height:'6px',
+                        backgroundColor:'#22c55e',
+                        borderRadius:'50%'
+                      }} />
+                    </div>
+                    <span>Veg Only</span>
+                  </button>
+                  <button
+                    onClick={() => setVegFilter('nonveg')}
+                    style={{
+                      display:'inline-flex',
+                      alignItems:'center',
+                      gap:6,
+                      padding:'8px 16px',
+                      borderRadius:20,
+                      border: vegFilter === 'nonveg' ? '2px solid #ef4444' : '2px solid #e5e7eb',
+                      background: vegFilter === 'nonveg' ? '#fef2f2' : '#fff',
+                      color: vegFilter === 'nonveg' ? '#dc2626' : '#6b7280',
+                      fontWeight: vegFilter === 'nonveg' ? 600 : 500,
+                      fontSize:14,
+                      cursor:'pointer',
+                      transition:'all 0.2s'
+                    }}
+                  >
+                    <div style={{ 
+                      display:'inline-flex',
+                      alignItems:'center',
+                      justifyContent:'center',
+                      width:'16px',
+                      height:'16px',
+                      border:'2px solid #ef4444',
+                      borderRadius:'2px'
+                    }}>
+                      <div style={{ 
+                        width:0,
+                        height:0,
+                        borderLeft:'3px solid transparent',
+                        borderRight:'3px solid transparent',
+                        borderBottom:'5px solid #ef4444'
+                      }} />
+                    </div>
+                    <span>Non-Veg Only</span>
+                  </button>
                 </div>
-                <span>Veg Only</span>
-              </button>
-              <button
-                onClick={() => setVegFilter('nonveg')}
-                style={{
-                  display:'inline-flex',
-                  alignItems:'center',
-                  gap:6,
-                  padding:'8px 16px',
-                  borderRadius:20,
-                  border: vegFilter === 'nonveg' ? '2px solid #ef4444' : '2px solid #e5e7eb',
-                  background: vegFilter === 'nonveg' ? '#fef2f2' : '#fff',
-                  color: vegFilter === 'nonveg' ? '#dc2626' : '#6b7280',
-                  fontWeight: vegFilter === 'nonveg' ? 600 : 500,
-                  fontSize:14,
-                  cursor:'pointer',
-                  transition:'all 0.2s'
-                }}
-              >
-                <div style={{ 
-                  display:'inline-flex',
-                  alignItems:'center',
-                  justifyContent:'center',
-                  width:'16px',
-                  height:'16px',
-                  border:'2px solid #ef4444',
-                  borderRadius:'2px'
-                }}>
-                  <div style={{ 
-                    width:0,
-                    height:0,
-                    borderLeft:'3px solid transparent',
-                    borderRight:'3px solid transparent',
-                    borderBottom:'5px solid #ef4444'
-                  }} />
-                </div>
-                <span>Non-Veg Only</span>
-              </button>
-            </div>
+              );
+            })()}
 
             <div style={{ display:'grid', gap:12 }}>
               {(() => {
@@ -632,6 +674,7 @@ const PublicMenu = () => {
                 } else if (vegFilter === 'nonveg') {
                   filteredByVeg = items.filter(item => item.is_veg === 0 || item.is_veg === false);
                 }
+                // Note: items with is_veg === 2 (bar) are excluded from veg/non-veg filters
                 
                 // Then apply search filter
                 const filteredItems = searchTerm 
@@ -665,10 +708,10 @@ const PublicMenu = () => {
                 const isBarCategory = currentCategoryMeta?.menu_type === 'bar';
                 
                 return filteredItems.map((item) => {
-                  // For bar menu: only show icon if is_veg is explicitly set in Excel (not null/undefined)
-                  // For food menu: show icon (default to true if null for backward compatibility)
-                  const iconValue = isBarCategory 
-                    ? item.is_veg  // For bar: pass null if not set (no icon), or actual value if set
+                  // Determine icon type: 2 = bar/cocktail, 0/1 = veg/non-veg, or bar category
+                  const isBarItem = item.is_veg === 2 || isBarCategory;
+                  const iconValue = isBarItem 
+                    ? null  // For bar: don't show veg/non-veg icon
                     : (item.is_veg !== null && item.is_veg !== undefined ? item.is_veg : true); // For food: default to true
                   
                   return (
@@ -677,7 +720,27 @@ const PublicMenu = () => {
                       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
                         <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
                           <div style={{ paddingTop:2, flexShrink:0 }}>
-                              <VegNonVegIcon isVeg={iconValue} />
+                              {isBarItem ? (
+                                <svg 
+                                  width="18" 
+                                  height="18" 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  stroke="#d97706" 
+                                  strokeWidth="2" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                  style={{ flexShrink: 0 }}
+                                  title="Cocktail"
+                                >
+                                  <path d="M3 3l9 9v9" />
+                                  <path d="M21 3L12 12" />
+                                  <path d="M9 21h6" />
+                                  <path d="M3 3l18 0" />
+                                </svg>
+                              ) : (
+                                <VegNonVegIcon isVeg={iconValue} />
+                              )}
                           </div>
                           <div style={{ flex:1, minWidth:0 }}>
                             <h3 style={{ fontSize:16, fontWeight:600, color:'#111827', marginBottom:4, lineHeight:1.4 }}>{item.name}</h3>
