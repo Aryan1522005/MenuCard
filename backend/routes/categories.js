@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
 // Create new category
 router.post('/', verifyToken, canManageMenu, async (req, res) => {
   try {
-    const { name, description, image_url = null, color = '#667eea', sort_order = 0, restaurant_id } = req.body;
+    const { name, description, image_url = null, color = '#667eea', sort_order = 0, restaurant_id, menu_type = 'food' } = req.body;
     
     if (!name) {
       return res.status(400).json({
@@ -54,9 +54,17 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
       });
     }
     
+    // Validate menu_type
+    if (menu_type && !['food', 'bar'].includes(menu_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'menu_type must be either "food" or "bar"'
+      });
+    }
+    
     const [result] = await pool.query(
-      'INSERT INTO categories (restaurant_id, name, description, image_url, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-      [restaurant_id, name, description, image_url, color, sort_order]
+      'INSERT INTO categories (restaurant_id, name, description, image_url, color, sort_order, menu_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [restaurant_id, name, description, image_url, color, sort_order, menu_type]
     );
     
     // Get the inserted ID - PostgreSQL returns it in result.insertId
@@ -71,7 +79,8 @@ router.post('/', verifyToken, canManageMenu, async (req, res) => {
         name,
         description,
         color,
-        sort_order
+        sort_order,
+        menu_type
       }
     });
   } catch (error) {
@@ -99,7 +108,7 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const { id } = req.params;
-    const { name, description, image_url = null, color, sort_order } = req.body;
+    const { name, description, image_url = null, color, sort_order, menu_type } = req.body;
 
     await connection.beginTransaction();
 
@@ -116,11 +125,18 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
     const newImageUrl = image_url !== undefined ? image_url : existing.image_url;
     const newColor = color !== undefined ? color : existing.color;
     const newSortOrder = sort_order !== undefined ? sort_order : existing.sort_order;
+    const newMenuType = menu_type !== undefined ? menu_type : (existing.menu_type || 'food');
+    
+    // Validate menu_type
+    if (newMenuType && !['food', 'bar'].includes(newMenuType)) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: 'menu_type must be either "food" or "bar"' });
+    }
 
     // Update the category itself
     await connection.execute(
-      'UPDATE categories SET name = ?, description = ?, image_url = ?, color = ?, sort_order = ? WHERE id = ?',
-      [newName, newDescription, newImageUrl, newColor, newSortOrder, id]
+      'UPDATE categories SET name = ?, description = ?, image_url = ?, color = ?, sort_order = ?, menu_type = ? WHERE id = ?',
+      [newName, newDescription, newImageUrl, newColor, newSortOrder, newMenuType, id]
     );
 
     // If the name changed, propagate to menu_items

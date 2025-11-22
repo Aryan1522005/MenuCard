@@ -23,18 +23,26 @@ const PublicMenu = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [vegFilter, setVegFilter] = useState('all'); // 'all', 'veg', 'nonveg'
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [menuType, setMenuType] = useState('food'); // 'food' or 'bar'
+  const [hasBarCategories, setHasBarCategories] = useState(false);
   const isHandlingPopState = useRef(false);
 
   const fetchMenu = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await menuAPI.getMenu(slug);
+      const res = await menuAPI.getMenu(slug, menuType);
       if (res.success) {
         setRestaurant(res.restaurant);
         setCategories(res.categories || {});
         setCategoryMeta(res.categoryMeta || {});
         // Use category order from backend
         setCategoryOrder(res.categoryOrder || []);
+        // Update hasBarCategories from API response
+        setHasBarCategories(res.hasBarCategories || false);
+        // If no bar categories exist, ensure we're on food menu
+        if (!res.hasBarCategories && menuType === 'bar') {
+          setMenuType('food');
+        }
       } else {
         setError(res.message || 'Failed to load menu');
       }
@@ -43,9 +51,16 @@ const PublicMenu = () => {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, menuType]);
 
   useEffect(() => { fetchMenu(); }, [fetchMenu]);
+
+  // Ensure menuType is 'food' if no bar categories exist
+  useEffect(() => {
+    if (!hasBarCategories && menuType === 'bar') {
+      setMenuType('food');
+    }
+  }, [hasBarCategories, menuType]);
 
   // Initialize history state on mount
   useEffect(() => {
@@ -166,7 +181,57 @@ const PublicMenu = () => {
         
         {!selectedCategory ? (
           <div style={{ padding:'16px' }}>
-            <h2 style={{ fontSize:22, fontWeight:800, color:'#111827', textAlign:'center', marginBottom:16 }}>Menu Categories</h2>
+            {/* Menu Type Toggle - Only show if restaurant has bar categories */}
+            {hasBarCategories && (
+              <div style={{ 
+                display:'flex', 
+                gap:8, 
+                marginBottom:20, 
+                background:'#fff', 
+                borderRadius:12, 
+                padding:4,
+                boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
+              }}>
+                <button
+                  onClick={() => setMenuType('food')}
+                  style={{
+                    flex:1,
+                    padding:'12px 16px',
+                    borderRadius:8,
+                    border:'none',
+                    background: menuType === 'food' ? '#667eea' : 'transparent',
+                    color: menuType === 'food' ? '#fff' : '#6b7280',
+                    fontWeight: menuType === 'food' ? 600 : 500,
+                    fontSize:15,
+                    cursor:'pointer',
+                    transition:'all 0.2s ease'
+                  }}
+                >
+                  🍽️ Food Menu
+                </button>
+                <button
+                  onClick={() => setMenuType('bar')}
+                  style={{
+                    flex:1,
+                    padding:'12px 16px',
+                    borderRadius:8,
+                    border:'none',
+                    background: menuType === 'bar' ? '#667eea' : 'transparent',
+                    color: menuType === 'bar' ? '#fff' : '#6b7280',
+                    fontWeight: menuType === 'bar' ? 600 : 500,
+                    fontSize:15,
+                    cursor:'pointer',
+                    transition:'all 0.2s ease'
+                  }}
+                >
+                  🍷 Bar Menu
+                </button>
+              </div>
+            )}
+            
+            <h2 style={{ fontSize:22, fontWeight:800, color:'#111827', textAlign:'center', marginBottom:16 }}>
+              {hasBarCategories ? (menuType === 'food' ? 'Food Menu' : 'Bar Menu') : 'Menu'} Categories
+            </h2>
             
             {/* Universal Search Bar */}
             <div style={{ marginBottom:20, position:'relative' }}>

@@ -50,9 +50,11 @@ api.interceptors.response.use(
 // API functions
 export const menuAPI = {
   // Get menu for a restaurant by slug
-  getMenu: async (slug) => {
+  getMenu: async (slug, menuType = 'food') => {
     try {
-      const response = await api.get(`/menu/${slug}`);
+      const response = await api.get(`/menu/${slug}`, {
+        params: { menu_type: menuType }
+      });
       return response.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to fetch menu');

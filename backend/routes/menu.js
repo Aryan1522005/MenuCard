@@ -32,11 +32,40 @@ router.get('/:slug', async (req, res) => {
     
     const restaurant = restaurantRows[0];
     
-    // Get categories with images
-    const [categoryRows] = await pool.query(
-      'SELECT id, name, image_url FROM categories WHERE restaurant_id = $1 ORDER BY id ASC',
-      [restaurant.id]
+    // Get menu_type from query (default to 'food' if not specified)
+    // If 'all' is specified, return all categories (for admin panel)
+    const menuType = req.query.menu_type || 'food';
+    const returnAllCategories = menuType === 'all';
+    
+    // Check if restaurant has any bar categories
+    const [barCategoriesCheck] = await pool.query(
+      'SELECT COUNT(*) as count FROM categories WHERE restaurant_id = $1 AND menu_type = $2',
+      [restaurant.id, 'bar']
     );
+    const hasBarCategories = barCategoriesCheck[0]?.count > 0;
+    
+    // Get categories with images, filtered by menu_type (unless 'all' is requested)
+    // Include categories with NULL menu_type for backward compatibility (treat as 'food')
+    let categoryQuery = 'SELECT id, name, image_url, menu_type FROM categories WHERE restaurant_id = $1';
+    let categoryParams = [restaurant.id];
+    
+    if (returnAllCategories) {
+      // For admin panel, return all categories regardless of menu_type
+      categoryQuery += ' ORDER BY id ASC';
+      categoryParams = [restaurant.id];
+    } else if (menuType === 'food') {
+      // For food menu, include categories with menu_type='food' OR NULL (backward compatibility)
+      categoryQuery += ' AND (menu_type = $2 OR menu_type IS NULL)';
+      categoryParams.push('food');
+      categoryQuery += ' ORDER BY id ASC';
+    } else {
+      // For bar menu, only include categories with menu_type='bar'
+      categoryQuery += ' AND menu_type = $2';
+      categoryParams.push('bar');
+      categoryQuery += ' ORDER BY id ASC';
+    }
+    
+    const [categoryRows] = await pool.query(categoryQuery, categoryParams);
     
     const categoryMap = {};
     const categoryOrder = [];
@@ -50,6 +79,10 @@ router.get('/:slug', async (req, res) => {
     
     // Get menu items grouped by category
     // Always include is_veg since we're using PostgreSQL with the column
+    // For admin panel (menu_type=all), show all items regardless of availability
+    const isAdminRequest = returnAllCategories;
+    const availabilityFilter = isAdminRequest ? '' : 'AND is_available = true';
+    
     const selectQuery = `
       SELECT 
         category,
@@ -62,7 +95,7 @@ router.get('/:slug', async (req, res) => {
         item_code,
         COALESCE(is_veg, true) as is_veg
       FROM menu_items 
-      WHERE restaurant_id = ? AND is_available = true
+      WHERE restaurant_id = ? ${availabilityFilter}
       ORDER BY sort_order, item_code
     `;
     
@@ -108,7 +141,8 @@ router.get('/:slug', async (req, res) => {
       },
       categories,
       categoryMeta: categoryMap,
-      categoryOrder
+      categoryOrder,
+      hasBarCategories // Indicates if restaurant has any bar menu categories
     });
     
   } catch (error) {

@@ -27,6 +27,7 @@ export const categories = pgTable('categories', {
   description: text('description'),
   color: varchar('color', { length: 7 }).default('#007bff'),
   sortOrder: integer('sort_order').default(0),
+  menuType: varchar('menu_type', { length: 10 }).default('food'), // 'food' or 'bar'
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

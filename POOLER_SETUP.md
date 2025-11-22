@@ -148,3 +148,4 @@ A: Yes, explicitly use the direct connection URL (without `.pooler`).
 - [Neon Connection Pooling Documentation](https://neon.tech/docs/connect/connection-pooling)
 - [PostgreSQL Connection Pooling Best Practices](https://www.postgresql.org/docs/current/runtime-config-connection.html)
 
+
