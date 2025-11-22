@@ -72,8 +72,7 @@ router.get('/:slug', async (req, res) => {
     categoryRows.forEach(cat => {
       categoryMap[cat.name] = {
         id: cat.id,
-        image_url: cat.image_url,
-        menu_type: cat.menu_type || 'food' // Include menu_type, default to 'food' for backward compatibility
+        image_url: cat.image_url
       };
       categoryOrder.push(cat.name);
     });
@@ -94,7 +93,7 @@ router.get('/:slug', async (req, res) => {
         is_available,
         sort_order,
         item_code,
-        is_veg
+        COALESCE(is_veg, true) as is_veg
       FROM menu_items 
       WHERE restaurant_id = ? ${availabilityFilter}
       ORDER BY sort_order, item_code
@@ -380,9 +379,9 @@ router.get('/:slug/search', async (req, res) => {
       WHERE restaurant_id = ? 
         AND is_available = true
         AND (
-          name ILIKE ? OR 
-          description ILIKE ? OR 
-          category ILIKE ?
+          name LIKE ? OR 
+          description LIKE ? OR 
+          category LIKE ?
         )
       ORDER BY category, sort_order, item_code
     `;
@@ -412,9 +411,9 @@ router.get('/:slug/search', async (req, res) => {
           WHERE restaurant_id = ? 
             AND is_available = true
             AND (
-              name ILIKE ? OR 
-              description ILIKE ? OR 
-              category ILIKE ?
+              name LIKE ? OR 
+              description LIKE ? OR 
+              category LIKE ?
             )
           ORDER BY category, sort_order, item_code
         `;
@@ -424,24 +423,6 @@ router.get('/:slug/search', async (req, res) => {
     }
     
     const [menuRows] = await pool.query(searchQuery, [restaurant.id, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
-    
-    // Get category metadata (including menu_type) for categories in search results
-    const uniqueCategories = [...new Set(menuRows.map(item => item.category))];
-    const categoryMap = {};
-    if (uniqueCategories.length > 0) {
-      const placeholders = uniqueCategories.map(() => '?').join(',');
-      const [categoryRows] = await pool.query(
-        `SELECT name, id, image_url, menu_type FROM categories WHERE restaurant_id = ? AND name IN (${placeholders})`,
-        [restaurant.id, ...uniqueCategories]
-      );
-      categoryRows.forEach(cat => {
-        categoryMap[cat.name] = {
-          id: cat.id,
-          image_url: cat.image_url,
-          menu_type: cat.menu_type || 'food' // Include menu_type, default to 'food' for backward compatibility
-        };
-      });
-    }
     
     // Group items by category
     const categories = {};
@@ -476,7 +457,6 @@ router.get('/:slug/search', async (req, res) => {
         custom_sections: restaurant.custom_sections ? JSON.parse(restaurant.custom_sections) : null
       },
       categories,
-      categoryMeta: categoryMap,
       searchTerm: searchTerm.trim(),
       totalResults: menuRows.length
     });
@@ -535,8 +515,8 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
         AND category = ?
         AND is_available = true
         AND (
-          name ILIKE ? OR 
-          description ILIKE ?
+          name LIKE ? OR 
+          description LIKE ?
         )
       ORDER BY sort_order, item_code
     `;
@@ -567,8 +547,8 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
             AND category = ?
             AND is_available = true
             AND (
-              name ILIKE ? OR 
-              description ILIKE ?
+              name LIKE ? OR 
+              description LIKE ?
             )
           ORDER BY sort_order, item_code
         `;

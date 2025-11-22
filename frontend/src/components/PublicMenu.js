@@ -142,7 +142,7 @@ const PublicMenu = () => {
 
     // Otherwise, debounce the search
     const timeoutId = setTimeout(() => {
-      handleSearch(searchTerm);
+        handleSearch(searchTerm);
     }, 300);
 
     return () => clearTimeout(timeoutId);
@@ -672,22 +672,22 @@ const PublicMenu = () => {
                     : (item.is_veg !== null && item.is_veg !== undefined ? item.is_veg : true); // For food: default to true
                   
                   return (
-                    <div key={item.id} style={{ background:'#fff', borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,.06)', border:'1px solid #e5e7eb', overflow:'hidden' }}>
-                      <div style={{ padding:16 }}>
-                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
-                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
-                            <div style={{ paddingTop:2, flexShrink:0 }}>
+                  <div key={item.id} style={{ background:'#fff', borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,.06)', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+                    <div style={{ padding:16 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
+                          <div style={{ paddingTop:2, flexShrink:0 }}>
                               <VegNonVegIcon isVeg={iconValue} />
-                            </div>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <h3 style={{ fontSize:16, fontWeight:600, color:'#111827', marginBottom:4, lineHeight:1.4 }}>{item.name}</h3>
-                              {item.description && (<p style={{ fontSize:14, color:'#6b7280', textAlign:'left', margin:0, lineHeight:1.5 }}>{item.description}</p>)}
-                            </div>
                           </div>
-                          <span style={{ fontSize:18, fontWeight:700, color:'#059669', whiteSpace:'nowrap', flexShrink:0 }}>₹{parseFloat(item.price).toFixed(2)}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <h3 style={{ fontSize:16, fontWeight:600, color:'#111827', marginBottom:4, lineHeight:1.4 }}>{item.name}</h3>
+                            {item.description && (<p style={{ fontSize:14, color:'#6b7280', textAlign:'left', margin:0, lineHeight:1.5 }}>{item.description}</p>)}
+                          </div>
                         </div>
+                        <span style={{ fontSize:18, fontWeight:700, color:'#059669', whiteSpace:'nowrap', flexShrink:0 }}>₹{parseFloat(item.price).toFixed(2)}</span>
                       </div>
                     </div>
+                  </div>
                   );
                 });
               })()}
