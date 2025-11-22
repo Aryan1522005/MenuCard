@@ -131,14 +131,18 @@ const PublicMenu = () => {
     }
   }, [slug]);
 
-  // Debounced search
+  // Debounced search - clear immediately if search term is empty
   useEffect(() => {
+    // If search term is empty, clear results immediately
+    if (!searchTerm.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    // Otherwise, debounce the search
     const timeoutId = setTimeout(() => {
-      if (searchTerm.trim()) {
-        handleSearch(searchTerm);
-      } else {
-        setSearchResults(null);
-      }
+      handleSearch(searchTerm);
     }, 300);
 
     return () => clearTimeout(timeoutId);
@@ -299,7 +303,7 @@ const PublicMenu = () => {
             </div>
 
             {/* Search Results or Categories */}
-            {searchResults ? (
+            {searchResults && searchTerm.trim() ? (
               <div>
                 <div style={{ 
                   display:'flex', 
@@ -355,7 +359,20 @@ const PublicMenu = () => {
                           {categoryName}
                         </h4>
                         <div style={{ display:'grid', gap:8 }}>
-                          {items.map((item) => (
+                          {items.map((item) => {
+                            // Check if this category is a bar category
+                            // Use categoryMeta from search results if available, otherwise use main categoryMeta
+                            const searchCategoryMeta = searchResults?.categoryMeta || categoryMeta;
+                            const categoryMetaForSearch = searchCategoryMeta[categoryName];
+                            const isBarCategory = categoryMetaForSearch?.menu_type === 'bar';
+                            
+                            // For bar menu: only show icon if is_veg is explicitly set in Excel (not null/undefined)
+                            // For food menu: show icon (default to true if null for backward compatibility)
+                            const iconValue = isBarCategory 
+                              ? item.is_veg  // For bar: pass null if not set (no icon), or actual value if set
+                              : (item.is_veg !== null && item.is_veg !== undefined ? item.is_veg : true); // For food: default to true
+                            
+                            return (
                             <div key={item.id} style={{ 
                               display:'flex', 
                               alignItems:'flex-start', 
@@ -366,7 +383,7 @@ const PublicMenu = () => {
                             }}>
                               <div style={{ flex:1, display:'flex', alignItems:'flex-start', gap:8, minWidth:0 }}>
                                 <div style={{ paddingTop:2, flexShrink:0 }}>
-                                  <VegNonVegIcon isVeg={item.is_veg} />
+                                  <VegNonVegIcon isVeg={iconValue} />
                                 </div>
                                 <div style={{ flex:1, minWidth:0 }}>
                                   <div style={{ fontSize:14, fontWeight:500, color:'#111827', marginBottom:2, lineHeight:1.4 }}>
@@ -383,7 +400,8 @@ const PublicMenu = () => {
                                 ₹{parseFloat(item.price).toFixed(2)}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -400,7 +418,32 @@ const PublicMenu = () => {
                       onClick={() => setSelectedCategory(categoryName)}
                       style={{ position:'relative', cursor:'pointer', borderRadius:24, overflow:'hidden', height:180, marginBottom:20, boxShadow:'0 10px 20px rgba(0,0,0,.08)', border:'none', width:'100%' }}
                     >
-                      <img src={imageUrl} alt={categoryName} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', zIndex:0 }} />
+                      <img 
+                        src={imageUrl} 
+                        alt={categoryName} 
+                        style={{ 
+                          position:'absolute', 
+                          inset:0, 
+                          width:'100%', 
+                          height:'100%', 
+                          objectFit:'cover', 
+                          zIndex:0,
+                          imageRendering: 'auto',
+                          WebkitImageRendering: 'auto',
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
+                          transform: 'translateZ(0)',
+                          WebkitTransform: 'translateZ(0)',
+                          msTransform: 'translateZ(0)',
+                          willChange: 'auto',
+                          filter: 'none',
+                          WebkitFilter: 'none',
+                          opacity: 1,
+                          WebkitOpacity: 1
+                        }} 
+                        loading="eager"
+                        decoding="async"
+                      />
                       <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)', zIndex:10 }} />
                       <div style={{ position:'absolute', inset:0, zIndex:20, display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center' }}>
                         <div style={{ color:'#fff', fontSize:20, fontWeight:700, textTransform:'uppercase', textShadow:'1px 1px 2px rgba(0,0,0,0.5)' }}>{categoryName}</div>
@@ -605,24 +648,36 @@ const PublicMenu = () => {
                   );
                 }
                 
-                return filteredItems.map((item) => (
-                  <div key={item.id} style={{ background:'#fff', borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,.06)', border:'1px solid #e5e7eb', overflow:'hidden' }}>
-                    <div style={{ padding:16 }}>
-                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
-                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
-                          <div style={{ paddingTop:2, flexShrink:0 }}>
-                            <VegNonVegIcon isVeg={item.is_veg} />
+                // Check if current category is a bar category
+                const currentCategoryMeta = categoryMeta[selectedCategory];
+                const isBarCategory = currentCategoryMeta?.menu_type === 'bar';
+                
+                return filteredItems.map((item) => {
+                  // For bar menu: only show icon if is_veg is explicitly set in Excel (not null/undefined)
+                  // For food menu: show icon (default to true if null for backward compatibility)
+                  const iconValue = isBarCategory 
+                    ? item.is_veg  // For bar: pass null if not set (no icon), or actual value if set
+                    : (item.is_veg !== null && item.is_veg !== undefined ? item.is_veg : true); // For food: default to true
+                  
+                  return (
+                    <div key={item.id} style={{ background:'#fff', borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,.06)', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+                      <div style={{ padding:16 }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
+                            <div style={{ paddingTop:2, flexShrink:0 }}>
+                              <VegNonVegIcon isVeg={iconValue} />
+                            </div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <h3 style={{ fontSize:16, fontWeight:600, color:'#111827', marginBottom:4, lineHeight:1.4 }}>{item.name}</h3>
+                              {item.description && (<p style={{ fontSize:14, color:'#6b7280', textAlign:'left', margin:0, lineHeight:1.5 }}>{item.description}</p>)}
+                            </div>
                           </div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <h3 style={{ fontSize:16, fontWeight:600, color:'#111827', marginBottom:4, lineHeight:1.4 }}>{item.name}</h3>
-                            {item.description && (<p style={{ fontSize:14, color:'#6b7280', textAlign:'left', margin:0, lineHeight:1.5 }}>{item.description}</p>)}
-                          </div>
+                          <span style={{ fontSize:18, fontWeight:700, color:'#059669', whiteSpace:'nowrap', flexShrink:0 }}>₹{parseFloat(item.price).toFixed(2)}</span>
                         </div>
-                        <span style={{ fontSize:18, fontWeight:700, color:'#059669', whiteSpace:'nowrap', flexShrink:0 }}>₹{parseFloat(item.price).toFixed(2)}</span>
                       </div>
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
           </div>

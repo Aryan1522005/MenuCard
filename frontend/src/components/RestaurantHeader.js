@@ -46,8 +46,14 @@ const RestaurantHeader = ({ restaurant }) => {
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            zIndex: 0
+            zIndex: 0,
+            imageRendering: 'auto',
+            WebkitImageRendering: 'auto',
+            backfaceVisibility: 'hidden',
+            transform: 'translateZ(0)',
+            willChange: 'transform'
           }}
+          loading="eager"
           onError={(e) => {
             console.log('Restaurant image failed to load, using default');
             e.target.src = defaultRestaurantImage;
@@ -72,7 +78,15 @@ const RestaurantHeader = ({ restaurant }) => {
                 src={restaurant.logo_url}
                 alt={restaurant.name}
                 className="rounded-full object-cover border-4 border-white shadow-lg"
-                style={{ width: 80, height: 80 }}
+                style={{ 
+                  width: 80, 
+                  height: 80,
+                  imageRendering: 'auto',
+                  WebkitImageRendering: 'auto',
+                  backfaceVisibility: 'hidden',
+                  transform: 'translateZ(0)'
+                }}
+                loading="eager"
                 onError={(e) => {
                   e.target.style.display = 'none';
                 }}
