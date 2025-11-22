@@ -22,3 +22,4 @@ WHERE TABLE_SCHEMA = DATABASE()
 AND TABLE_NAME = 'menu_items'
 AND COLUMN_NAME = 'is_veg';
 
+
