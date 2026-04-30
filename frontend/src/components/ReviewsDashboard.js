@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import jsPDF from 'jspdf';
@@ -31,8 +31,8 @@ const ReviewsDashboard = ({ restaurantId, restaurantName }) => {
       if (minRating) params.append('min_rating', minRating);
 
       const [feedbackRes, statsRes] = await Promise.all([
-        axios.get(`/api/feedback/restaurant/${restaurantId}?${params.toString()}`),
-        axios.get(`/api/feedback/stats/${restaurantId}?${params.toString()}`)
+        api.get(`/feedback/restaurant/${restaurantId}?${params.toString()}`),
+        api.get(`/feedback/stats/${restaurantId}?${params.toString()}`)
       ]);
 
       if (feedbackRes.data.success) {
@@ -62,7 +62,7 @@ const ReviewsDashboard = ({ restaurantId, restaurantName }) => {
     }
 
     try {
-      await axios.delete(`/api/feedback/${id}`);
+      await api.delete(`/feedback/${id}`);
       fetchFeedback();
     } catch (err) {
       alert('Failed to delete feedback');

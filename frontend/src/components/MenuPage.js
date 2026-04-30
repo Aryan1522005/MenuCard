@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { menuAPI } from '../services/api';
+import api from '../services/api';
 import RestaurantHeader from './RestaurantHeader';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
@@ -30,9 +31,9 @@ const MenuPage = () => {
         setCategoryOrder(response.categoryOrder || []);
         // After we know the restaurant id, fetch the full category list so we show all
         try {
-          const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-          const res = await fetch(`${baseUrl}/categories?restaurant_id=${response.restaurant.id}`);
-          const data = await res.json();
+          const { data } = await api.get('/categories', {
+            params: { restaurant_id: response.restaurant.id }
+          });
           if (data && data.success) {
             setCategoryList(Array.isArray(data.categories) ? data.categories : []);
           }
