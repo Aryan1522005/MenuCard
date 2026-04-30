@@ -93,7 +93,7 @@ router.get('/:slug', async (req, res) => {
         is_available,
         sort_order,
         item_code,
-        COALESCE(is_veg, 1) as is_veg
+        COALESCE(is_veg, true) as is_veg
       FROM menu_items 
       WHERE restaurant_id = ? ${availabilityFilter}
       ORDER BY sort_order, item_code
@@ -697,30 +697,15 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
       const availRaw = getField(r, ['is_available', 'available', 'Available']);
       const is_available = (availRaw === undefined || String(availRaw).trim() === '') ? true : toBool(availRaw);
       
-      // Get veg/non-veg/bar field (0 = non-veg, 1 = veg, 2 = bar/cocktail)
+      // Get veg/non-veg field (0 = veg, 1 = non-veg)
       const vegRaw = getField(r, ['veg', 'Veg', 'is_veg', 'food_type', 'type']);
       let is_veg = null;
       if (vegRaw !== undefined && String(vegRaw).trim() !== '') {
         const vegStr = String(vegRaw).trim().toLowerCase();
-        const vegNum = parseInt(vegRaw);
-        if (!isNaN(vegNum)) {
-          // Numeric value: 0 = non-veg, 1 = veg, 2 = bar
-          if (vegNum === 0) {
-            is_veg = 0; // non-veg
-          } else if (vegNum === 1) {
-            is_veg = 1; // veg
-          } else if (vegNum === 2) {
-            is_veg = 2; // bar/cocktail
-          }
-        } else {
-          // Text value: support old format for backward compatibility
-          if (vegStr === 'veg' || vegStr === 'vegetarian') {
-            is_veg = 1; // veg
-          } else if (vegStr === 'non-veg' || vegStr === 'nonveg' || vegStr === 'non vegetarian') {
-            is_veg = 0; // non-veg
-          } else if (vegStr === 'bar' || vegStr === 'cocktail' || vegStr === 'drink') {
-            is_veg = 2; // bar/cocktail
-          }
+        if (vegStr === '0' || vegStr === 'veg' || vegStr === 'vegetarian') {
+          is_veg = true; // 0 means veg
+        } else if (vegStr === '1' || vegStr === 'non-veg' || vegStr === 'nonveg' || vegStr === 'non vegetarian') {
+          is_veg = false; // 1 means non-veg
         }
       }
 
@@ -840,30 +825,15 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
       const description = r.description || r.Description || '';
       const is_available = true;
       
-      // Get veg/non-veg/bar field (0 = non-veg, 1 = veg, 2 = bar/cocktail)
+      // Get veg/non-veg field (0 = veg, 1 = non-veg)
       const vegRaw = r.veg || r.Veg || r.is_veg || r.food_type || r.type || '';
       let is_veg = null;
       if (vegRaw && String(vegRaw).trim() !== '') {
         const vegStr = String(vegRaw).trim().toLowerCase();
-        const vegNum = parseInt(vegRaw);
-        if (!isNaN(vegNum)) {
-          // Numeric value: 0 = non-veg, 1 = veg, 2 = bar
-          if (vegNum === 0) {
-            is_veg = 0; // non-veg
-          } else if (vegNum === 1) {
-            is_veg = 1; // veg
-          } else if (vegNum === 2) {
-            is_veg = 2; // bar/cocktail
-          }
-        } else {
-          // Text value: support old format for backward compatibility
-          if (vegStr === 'veg' || vegStr === 'vegetarian') {
-            is_veg = 1; // veg
-          } else if (vegStr === 'non-veg' || vegStr === 'nonveg' || vegStr === 'non vegetarian') {
-            is_veg = 0; // non-veg
-          } else if (vegStr === 'bar' || vegStr === 'cocktail' || vegStr === 'drink') {
-            is_veg = 2; // bar/cocktail
-          }
+        if (vegStr === '0' || vegStr === 'veg' || vegStr === 'vegetarian') {
+          is_veg = true; // 0 means veg
+        } else if (vegStr === '1' || vegStr === 'non-veg' || vegStr === 'nonveg' || vegStr === 'non vegetarian') {
+          is_veg = false; // 1 means non-veg
         }
       }
 

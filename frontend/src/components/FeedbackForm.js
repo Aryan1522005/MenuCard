@@ -51,8 +51,8 @@ const StarRating = ({ rating, setRating, label, required = true, icon = null }) 
                 strokeWidth={isActive ? '0' : '1.5'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="transition-all duration-200"
-                style={{ width: '28px', height: '28px', flexShrink: 0 }}
+                className="w-4 h-4 transition-all duration-200"
+                style={{ width: '16px', height: '16px', flexShrink: 0 }}
               >
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
@@ -225,12 +225,12 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-4">
+          <h3 className="text-3xl font-bold text-gray-900 mb-4">
               Thank You! 🙏
-            </h3>
+          </h3>
             <p className="text-gray-600 text-lg leading-relaxed">
               Your feedback has been submitted successfully. We truly appreciate your time and valuable input!
-            </p>
+          </p>
           </div>
         </div>
       </div>
@@ -296,7 +296,12 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
               Phone Number
               <span className="text-sm font-normal text-gray-500 ml-2">(Optional)</span>
             </label>
-            <div className="relative max-w-md">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '18px', height: '18px', color: '#3b82f6' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
               <input
                 type="tel"
                 value={formData.phone_number}
@@ -305,7 +310,7 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                   setFormData({ ...formData, phone_number: formatted });
                 }}
                 placeholder="Enter your 10-digit mobile number"
-                className="w-full px-4 py-4 text-base border-0 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none transition-all text-gray-900 placeholder:text-gray-400 bg-white"
+                className="w-full pl-11 pr-4 py-3.5 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white"
               />
               {formData.phone_number && formData.phone_number !== '+91' && !validatePhoneNumber(formData.phone_number) && (
                 <div className="absolute -bottom-6 left-0 flex items-center gap-2 text-red-600 text-sm font-medium mt-1">
@@ -315,6 +320,22 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                   Please enter a valid Indian mobile number
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t-2 border-gray-200 pt-6">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center gap-2 mb-3">
+                <svg className="" fill="currentColor" viewBox="0 0 20 20" style={{ width: '16px', height: '16px', color: '#f59e0b' }}>
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <h3 className="text-xl font-bold text-gray-900">Rate Your Experience</h3>
+                <svg className="" fill="currentColor" viewBox="0 0 20 20" style={{ width: '16px', height: '16px', color: '#f59e0b' }}>
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              </div>
+              <p className="text-gray-600 text-sm">Please rate the following aspects of your visit</p>
             </div>
           </div>
 
@@ -350,8 +371,8 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
           </div>
 
           {/* Comments */}
-          <div className="space-y-3 ml-3">
-            <div className="flex items-center justify-between max-w-md">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <label className="block text-base font-semibold text-gray-900">
                 Additional Comments / Suggestions
                 <span className="text-sm font-normal text-gray-500 ml-2">(Optional)</span>
@@ -366,26 +387,24 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                 {formData.comments.length} / 150
               </span>
             </div>
-            <div className="max-w-md">
-              <textarea
-                value={formData.comments}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, comments: value });
-                  if (value.length > 150) {
-                    setCommentsError('Comments cannot exceed 150 characters');
-                  } else {
-                    setCommentsError(null);
-                  }
-                }}
-                placeholder="Share your thoughts, suggestions, or any specific feedback... (max 150 characters)"
-                rows="5"
-                maxLength={150}
-                className={`w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white shadow-sm ${
-                  commentsError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
-                }`}
-              />
-            </div>
+            <textarea
+              value={formData.comments}
+              onChange={(e) => {
+                const value = e.target.value;
+                setFormData({ ...formData, comments: value });
+                if (value.length > 150) {
+                  setCommentsError('Comments cannot exceed 150 characters');
+                } else {
+                  setCommentsError(null);
+                }
+              }}
+              placeholder="Share your thoughts, suggestions, or any specific feedback... (max 150 characters)"
+              rows="5"
+              maxLength={150}
+              className={`w-full px-4 py-3.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none resize-none transition-all text-gray-900 placeholder:text-gray-400 bg-white hover:border-gray-400 focus:bg-white ${
+                commentsError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+              }`}
+            />
             {commentsError && (
               <div className="text-red-500 text-sm flex items-center gap-1">
                 <svg className="" fill="currentColor" viewBox="0 0 20 20" style={{ width: '14px', height: '14px' }}>
@@ -409,18 +428,17 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
           )}
 
           {/* Submit Button */}
-          <div className="pt-4 ml-3">
-            <div className="max-w-md">
-              <button
-                type="submit"
-                disabled={submitting}
-                className={`w-full py-4 rounded-lg font-bold text-base text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
-                  submitting
-                    ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transform'
-                }`}
-                style={!submitting ? { background: 'linear-gradient(to right, #2563eb, #4f46e5, #7c3aed)' } : {}}
-              >
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`w-full py-4 rounded-md font-bold text-base text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
+                submitting
+                  ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                  : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transform'
+              }`}
+              style={!submitting ? { background: 'linear-gradient(to right, #2563eb, #4f46e5, #7c3aed)' } : {}}
+            >
               {submitting ? (
                 <span className="flex items-center justify-center gap-3">
                   <svg className="animate-spin text-white" fill="none" viewBox="0 0 24 24" style={{ width: '18px', height: '18px' }}>
@@ -437,8 +455,7 @@ const FeedbackForm = ({ restaurantId, restaurantName, onClose }) => {
                   <span>Submit Feedback</span>
                 </span>
               )}
-              </button>
-            </div>
+            </button>
           </div>
         </form>
       </div>
