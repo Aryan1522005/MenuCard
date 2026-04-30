@@ -12,6 +12,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+const parseCustomSections = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    console.warn('Invalid custom_sections JSON, returning null');
+    return null;
+  }
+};
+
 // GET /api/menu/:slug - Get menu items for a restaurant
 router.get('/:slug', async (req, res) => {
   try {
@@ -83,7 +94,7 @@ router.get('/:slug', async (req, res) => {
     const isAdminRequest = returnAllCategories;
     const availabilityFilter = isAdminRequest ? '' : 'AND is_available = true';
     
-    const selectQuery = `
+    const selectQueryWithIsVeg = `
       SELECT 
         category,
         id,
@@ -98,8 +109,34 @@ router.get('/:slug', async (req, res) => {
       WHERE restaurant_id = ? ${availabilityFilter}
       ORDER BY sort_order, item_code
     `;
-    
-    const [menuRows] = await pool.query(selectQuery, [restaurant.id]);
+
+    const selectQueryWithoutIsVeg = `
+      SELECT 
+        category,
+        id,
+        name,
+        description,
+        price,
+        is_available,
+        sort_order,
+        item_code
+      FROM menu_items 
+      WHERE restaurant_id = ? ${availabilityFilter}
+      ORDER BY sort_order, item_code
+    `;
+
+    let menuRows;
+    try {
+      [menuRows] = await pool.query(selectQueryWithIsVeg, [restaurant.id]);
+    } catch (queryError) {
+      const msg = String(queryError?.message || '').toLowerCase();
+      if (msg.includes('is_veg') && msg.includes('does not exist')) {
+        console.warn('menu_items.is_veg column missing, using fallback query');
+        [menuRows] = await pool.query(selectQueryWithoutIsVeg, [restaurant.id]);
+      } else {
+        throw queryError;
+      }
+    }
     
     // Group items by category using predefined category order
     const categories = {};
@@ -119,7 +156,7 @@ router.get('/:slug', async (req, res) => {
           price: parseFloat(item.price),
           is_available: item.is_available,
           item_code: item.item_code,
-          is_veg: item.is_veg
+          is_veg: item.is_veg ?? true
         });
       }
     });
@@ -137,7 +174,7 @@ router.get('/:slug', async (req, res) => {
         phone: restaurant.phone,
         wifi_name: restaurant.wifi_name,
         wifi_password: restaurant.wifi_password,
-        custom_sections: restaurant.custom_sections ? JSON.parse(restaurant.custom_sections) : null
+        custom_sections: parseCustomSections(restaurant.custom_sections)
       },
       categories,
       categoryMeta: categoryMap,
