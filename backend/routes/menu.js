@@ -23,6 +23,23 @@ const parseCustomSections = (value) => {
   }
 };
 
+const normalizeIsVegForResponse = (value) => {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value === 'boolean') return value;
+  const num = Number(value);
+  if (!Number.isNaN(num)) return num === 1;
+  const text = String(value).trim().toLowerCase();
+  if (['true', 'veg', 'vegetarian', 'yes', 'y'].includes(text)) return true;
+  if (['false', 'non-veg', 'nonveg', 'non vegetarian', 'no', 'n'].includes(text)) return false;
+  return true;
+};
+
+const toDbIsVegValue = (value, isNumericColumn) => {
+  if (value === null || value === undefined || value === '') return null;
+  const boolValue = normalizeIsVegForResponse(value);
+  return isNumericColumn ? (boolValue ? 1 : 0) : boolValue;
+};
+
 // GET /api/menu/:slug - Get menu items for a restaurant
 router.get('/:slug', async (req, res) => {
   try {
@@ -48,19 +65,42 @@ router.get('/:slug', async (req, res) => {
     const menuType = req.query.menu_type || 'food';
     const returnAllCategories = menuType === 'all';
     
-    // Check if restaurant has any bar categories
-    const [barCategoriesCheck] = await pool.query(
-      'SELECT COUNT(*) as count FROM categories WHERE restaurant_id = $1 AND menu_type = $2',
-      [restaurant.id, 'bar']
-    );
-    const hasBarCategories = barCategoriesCheck[0]?.count > 0;
+    // Check schema compatibility: some older DBs don't have categories.menu_type
+    let hasCategoryMenuTypeColumn = true;
+    try {
+      const [menuTypeColRows] = await pool.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'categories'
+          AND COLUMN_NAME = 'menu_type'
+      `);
+      hasCategoryMenuTypeColumn = menuTypeColRows.length > 0;
+    } catch (schemaCheckError) {
+      console.warn('Could not verify categories.menu_type column, using legacy-safe queries');
+      hasCategoryMenuTypeColumn = false;
+    }
+
+    let hasBarCategories = false;
+    if (hasCategoryMenuTypeColumn) {
+      const [barCategoriesCheck] = await pool.query(
+        'SELECT COUNT(*) as count FROM categories WHERE restaurant_id = $1 AND menu_type = $2',
+        [restaurant.id, 'bar']
+      );
+      hasBarCategories = Number(barCategoriesCheck[0]?.count || 0) > 0;
+    }
     
     // Get categories with images, filtered by menu_type (unless 'all' is requested)
     // Include categories with NULL menu_type for backward compatibility (treat as 'food')
-    let categoryQuery = 'SELECT id, name, image_url, menu_type FROM categories WHERE restaurant_id = $1';
+    let categoryQuery = hasCategoryMenuTypeColumn
+      ? 'SELECT id, name, image_url, menu_type FROM categories WHERE restaurant_id = $1'
+      : 'SELECT id, name, image_url FROM categories WHERE restaurant_id = $1';
     let categoryParams = [restaurant.id];
     
-    if (returnAllCategories) {
+    if (!hasCategoryMenuTypeColumn) {
+      // Legacy DB fallback: no menu_type support, return all categories
+      categoryQuery += ' ORDER BY id ASC';
+    } else if (returnAllCategories) {
       // For admin panel, return all categories regardless of menu_type
       categoryQuery += ' ORDER BY id ASC';
       categoryParams = [restaurant.id];
@@ -104,7 +144,7 @@ router.get('/:slug', async (req, res) => {
         is_available,
         sort_order,
         item_code,
-        COALESCE(is_veg, true) as is_veg
+        is_veg
       FROM menu_items 
       WHERE restaurant_id = ? ${availabilityFilter}
       ORDER BY sort_order, item_code
@@ -156,7 +196,7 @@ router.get('/:slug', async (req, res) => {
           price: parseFloat(item.price),
           is_available: item.is_available,
           item_code: item.item_code,
-          is_veg: item.is_veg ?? true
+          is_veg: normalizeIsVegForResponse(item.is_veg)
         });
       }
     });
@@ -232,7 +272,7 @@ router.post('/add', verifyToken, canManageMenu, async (req, res) => {
     
     try {
       const [checkColumn] = await pool.query(`
-        SELECT COLUMN_NAME 
+        SELECT COLUMN_NAME, data_type
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
         AND TABLE_NAME = 'menu_items' 
@@ -245,7 +285,10 @@ router.post('/add', verifyToken, canManageMenu, async (req, res) => {
           (restaurant_id, category, name, description, price, availability_time, is_available, sort_order, item_code, is_veg)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        insertParams.push(is_veg !== undefined ? is_veg : null);
+        const isNumericIsVeg = ['smallint', 'integer', 'bigint'].includes(
+          String(checkColumn[0].data_type || '').toLowerCase()
+        );
+        insertParams.push(toDbIsVegValue(is_veg, isNumericIsVeg));
       }
     } catch (e) {
       console.log('is_veg column check failed, using basic insert');
@@ -339,7 +382,7 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
     
     try {
       const [checkColumn] = await pool.query(`
-        SELECT COLUMN_NAME 
+        SELECT COLUMN_NAME, data_type
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
         AND TABLE_NAME = 'menu_items' 
@@ -347,10 +390,22 @@ router.put('/:id', verifyToken, canManageMenu, async (req, res) => {
       `);
       
       if (checkColumn.length > 0) {
+        const isNumericIsVeg = ['smallint', 'integer', 'bigint'].includes(
+          String(checkColumn[0].data_type || '').toLowerCase()
+        );
         updateQuery = `UPDATE menu_items 
          SET category = ?, name = ?, description = ?, price = ?, is_available = ?, availability_time = ?, is_veg = ?
          WHERE id = ?`;
-        updateParams = [newCategory, newName, newDescription, newPrice, newIsAvailable, newPrepTime, newIsVeg, id];
+        updateParams = [
+          newCategory,
+          newName,
+          newDescription,
+          newPrice,
+          newIsAvailable,
+          newPrepTime,
+          toDbIsVegValue(newIsVeg, isNumericIsVeg),
+          id
+        ];
       }
     } catch (e) {
       console.log('is_veg column check failed, using basic update');
@@ -491,7 +546,7 @@ router.get('/:slug/search', async (req, res) => {
         phone: restaurant.phone,
         wifi_name: restaurant.wifi_name,
         wifi_password: restaurant.wifi_password,
-        custom_sections: restaurant.custom_sections ? JSON.parse(restaurant.custom_sections) : null
+        custom_sections: parseCustomSections(restaurant.custom_sections)
       },
       categories,
       searchTerm: searchTerm.trim(),
@@ -609,7 +664,7 @@ router.get('/:slug/category/:categoryName/search', async (req, res) => {
         phone: restaurant.phone,
         wifi_name: restaurant.wifi_name,
         wifi_password: restaurant.wifi_password,
-        custom_sections: restaurant.custom_sections ? JSON.parse(restaurant.custom_sections) : null
+        custom_sections: parseCustomSections(restaurant.custom_sections)
       },
       category: categoryName,
       items: menuRows.map(item => ({
@@ -779,7 +834,7 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
     
     try {
       const [checkColumn] = await pool.query(`
-        SELECT COLUMN_NAME 
+        SELECT COLUMN_NAME, data_type
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
         AND TABLE_NAME = 'menu_items' 
@@ -787,6 +842,12 @@ router.post('/bulk-import', verifyToken, canManageMenu, upload.single('file'), a
       `);
       
       if (checkColumn.length > 0) {
+        const isNumericIsVeg = ['smallint', 'integer', 'bigint'].includes(
+          String(checkColumn[0].data_type || '').toLowerCase()
+        );
+        for (const row of insertValues) {
+          row[row.length - 1] = toDbIsVegValue(row[row.length - 1], isNumericIsVeg);
+        }
         insertQuery = `INSERT INTO menu_items 
           (restaurant_id, category, name, description, price, availability_time, is_available, sort_order, item_code, is_veg)
           VALUES ?`;
@@ -905,7 +966,7 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
     
     try {
       const [checkColumn] = await pool.query(`
-        SELECT COLUMN_NAME 
+        SELECT COLUMN_NAME, data_type
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() 
         AND TABLE_NAME = 'menu_items' 
@@ -913,6 +974,12 @@ router.post('/bulk-import-csv', verifyToken, canManageMenu, upload.single('file'
       `);
       
       if (checkColumn.length > 0) {
+        const isNumericIsVeg = ['smallint', 'integer', 'bigint'].includes(
+          String(checkColumn[0].data_type || '').toLowerCase()
+        );
+        for (const row of insertValues) {
+          row[row.length - 1] = toDbIsVegValue(row[row.length - 1], isNumericIsVeg);
+        }
         insertQuery = `INSERT INTO menu_items 
           (restaurant_id, category, name, description, price, availability_time, is_available, sort_order, item_code, is_veg)
           VALUES ?`;
