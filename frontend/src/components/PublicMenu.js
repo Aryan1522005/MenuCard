@@ -26,6 +26,7 @@ const PublicMenu = () => {
   const [menuType, setMenuType] = useState('food'); // 'food' or 'bar'
   const [hasBarCategories, setHasBarCategories] = useState(false);
   const isHandlingPopState = useRef(false);
+  const categoryViewRef = useRef(null);
 
   const fetchMenu = useCallback(async () => {
     try {
@@ -107,6 +108,18 @@ const PublicMenu = () => {
       window.history.pushState({ category: selectedCategory }, '', window.location.href);
     }
     // Note: We don't replace state when going back to null, as that's handled by the back button
+  }, [selectedCategory]);
+
+  // Always reset viewport to top of category content when opening a category.
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    if (categoryViewRef.current) {
+      categoryViewRef.current.scrollIntoView({ block: 'start' });
+      return;
+    }
+
+    window.scrollTo(0, 0);
   }, [selectedCategory]);
 
   // Search functionality
@@ -467,7 +480,7 @@ const PublicMenu = () => {
             )}
           </div>
         ) : (
-          <div>
+          <div ref={categoryViewRef}>
             <div style={{ marginBottom:8 }}>
               <button onClick={() => { 
                 // Go back in history - this will trigger popstate event which updates the state
